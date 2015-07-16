@@ -160,7 +160,7 @@ class RBM(NEURAL_NETWORK):
                     _done = i
                     break
 
-        self.plot(xrange(_done), _gcost, "img/"+ fName +"_cost.png")
+        self.plot(xrange(_done), _gcost, fName + "_cost.png")
 
 #####################################################################
 

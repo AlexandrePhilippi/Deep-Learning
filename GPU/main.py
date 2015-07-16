@@ -75,8 +75,8 @@ def main(argv):
     if _dataname is not None:
         _trainsets = ld.load_datasets(_dataname, "train")
     else:
-        _train = [ld.mnist_train_img("datasets"),
-                  ld.mnist_train_lbl("datasets")]
+        _train = [ld.mnist_train_img("../datasets"),
+                  ld.mnist_train_lbl("../datasets")]
 
     # Training the network
     _nnet.train(_train, _iter, _batchSize, _savename)
@@ -94,8 +94,8 @@ def main(argv):
     if _dataname is not None:
         _testsets = ld.load_datasets(_dataname, "test")
     else:
-        _test = [ld.mnist_test_img("datasets"),
-                 ld.mnist_test_lbl("datasets")]
+        _test = [ld.mnist_test_img("../datasets"),
+                 ld.mnist_test_lbl("../datasets")]
 
     # Should not stay like this ...
     if _type == 2:

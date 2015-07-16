@@ -1,8 +1,9 @@
 from neural_network import NEURAL_NETWORK
 
-import numpy as np
-import tools as tl
-import time  as tm
+import numpy  as np
+import gnumpy as gpu
+import tools  as tl
+import time   as tm
 
 class AUTOENCODERS(NEURAL_NETWORK):
     
@@ -21,7 +22,7 @@ class AUTOENCODERS(NEURAL_NETWORK):
         _out.append(fInput)
         
         for w,b in zip(self.mWeights, self.mBiases):
-            _out.append(tl.sigmoid(np.dot(w, _out[i]) + b))
+            _out.append(gpu.logistic(gpu.dot(w, _out[i]) + b))
             i = i + 1
             
         return _out
@@ -44,7 +45,7 @@ class AUTOENCODERS(NEURAL_NETWORK):
         for i in xrange(1, self.mNbLayers - 1):
             _sparsity = -_rho / fAvg[-i] + (1 - _rho)/(1 - fAvg[-i])
             
-            _err.append((np.dot(self.mWeights[-i].T, _err[i-1]) + _beta * _sparsity) * fOut[-i-1] * (1 - fOut[-i-1]))
+            _err.append((gpu.dot(self.mWeights[-i].T, _err[i-1]) + _beta * _sparsity) * fOut[-i-1] * (1 - fOut[-i-1]))
             
         _err.reverse()
 
@@ -60,8 +61,8 @@ class AUTOENCODERS(NEURAL_NETWORK):
         _bGrad = []
 
         for err, out in zip(fErr, fOut):
-            _wGrad.append(np.dot(err, out.T) / fSize)
-            _bGrad.append(err.mean(1, keepdims=True))
+            _wGrad.append(gpu.dot(err, out.T) / fSize)
+            _bGrad.append(err.mean(1))
             
         return _wGrad, _bGrad
 
@@ -73,7 +74,7 @@ class AUTOENCODERS(NEURAL_NETWORK):
         for i in xrange(self.mNbLayers - 1):
             self.mWeights[i] -= self.mEpsilon * (self.mTeta * self.mWeights[i] + fWGrad[i])
 
-            self.mBiases[i]  -= self.mEpsilon * fBGrad[i]
+            self.mBiases[i]  -= self.mEpsilon * fBGrad[i].reshape(len(fBGrad[i]), 1)
 
 #####################################################################
         
@@ -179,7 +180,7 @@ class AUTOENCODERS(NEURAL_NETWORK):
                     _done = i + 1
                     break
 
-        self.plot(xrange(_done), _gcost, "img/"+ fName +"_cost.png")
+        self.plot(xrange(_done), _gcost, fName + "_cost.png")
                 
 #####################################################################
 

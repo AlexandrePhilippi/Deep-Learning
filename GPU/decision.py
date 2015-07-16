@@ -124,8 +124,8 @@ class DECISION(AUTOENCODERS):
                     _done = i + 1
                     break
 
-        self.plot(np.arange(_done), _gcost, "img/"+fName+"_cost.png")
-        self.plot(np.arange(_done), _perf,  "img/"+fName+"_perf.png")
+        self.plot(np.arange(_done), _gcost, fName + "_cost.png")
+        self.plot(np.arange(_done), _perf,  fName + "_perf.png")
                     
 #####################################################################
 

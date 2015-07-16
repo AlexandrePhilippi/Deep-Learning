@@ -1,4 +1,4 @@
-import numpy as np
+import numpy     as np
 import scipy.io  as sio
 import random    as rd
 
@@ -92,7 +92,7 @@ def subpicture(fSrc, fNbPatches, fSize, fPatchSize):
 
 def load_datasets(fDataname, fType):
 
-    _tmp = np.loadtxt("datasets/"+fDataname+"_"+fType+"sets.txt")
+    _tmp = np.loadtxt("../datasets/"+fDataname+"_"+fType+"sets.txt")
 
     return _tmp
 

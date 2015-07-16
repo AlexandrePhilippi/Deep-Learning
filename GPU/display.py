@@ -42,7 +42,7 @@ def display(fName, fSrc, fNbPatches, fDim, fType=None, fNbImgR=10, fNbImgC=10):
     plt.imshow(_vl, cmap=cm.Greys_r)
 
     if fName is not None and fType is not None:
-        plt.savefig("img/" + fName + "_" + fType + ".png")
+        plt.savefig("../img/" + fName + "_" + fType + ".png")
     else:
         plt.show()
 

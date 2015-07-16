@@ -1,4 +1,5 @@
 import numpy             as np
+import gnumpy            as gpu
 import math              as mt
 import matplotlib.pyplot as plt
 
@@ -43,16 +44,16 @@ class NEURAL_NETWORK(object):
             _min = -4 * mt.sqrt(6. / (_nIn + _nOut + 1))
             _max = -_min
             
-            _tmp = np.random.uniform(_min, _max, (_nOut, _nIn))
+            _tmp = gpu.garray(np.random.uniform(_min, _max, (_nOut, _nIn)))
 
             self.mWeights.append(_tmp)
-            self.mDWgrad.append(np.zeros((_nOut, _nIn)))
+            self.mDWgrad.append(gpu.zeros((_nOut, _nIn)))
 
         # Initialization to zeros' vector
         self.mBiases = []
 
         for i in xrange(1, self.mNbLayers):
-            self.mBiases.append(np.zeros((fNeurons[i],1)))
+            self.mBiases.append(gpu.zeros((fNeurons[i],1)))
     
 #####################################################################
 
@@ -86,7 +87,7 @@ class NEURAL_NETWORK(object):
     # Compute the average cost obtained with a set of train inputs
     def computation_cost(self, fOutput, fInput):
 
-        return np.sum((fOutput - fInput)**2) / 2.
+        return gpu.sum((fOutput - fInput)**2) / 2.
 
 #####################################################################
     
@@ -96,7 +97,7 @@ class NEURAL_NETWORK(object):
         _tmp = 0
         
         for w in self.mWeights:
-            _tmp = _tmp + np.sum(w**2)
+            _tmp = _tmp + gpu.sum(w**2)
 
         return self.mTeta * _tmp / 2
 
@@ -104,14 +105,21 @@ class NEURAL_NETWORK(object):
 
     def init_average_list(self):
 
-        return [np.zeros((self.mNeurons[i], 1)) for i in xrange(1, self.mNbLayers-1)]
+        return [gpu.zeros((self.mNeurons[i], 1)) for i in xrange(1, self.mNbLayers-1)]
 
 #####################################################################
     
     # Compute the average activation of a neurons
     def average_activation(self, fHid, fSize):
 
-        return [fHid[i].mean(1, keepdims=True) for i in xrange(1, self.mNbLayers-1)]
+        _avg = []
+
+        for i in xrange(1, self.mNbLayers-1):
+
+            _tmp = fHid[i].mean(1)
+            _avg.append(_tmp.reshape(len(_tmp), 1))
+        
+        return _avg
 
 #####################################################################
     
@@ -123,8 +131,8 @@ class NEURAL_NETWORK(object):
 
         for rows in fAvg:
             for j in rows:
-                _tmp += _rho * mt.log(_rho / j)
-                _tmp += (1 - _rho) * mt.log((1 - _rho) / (1 - j)) 
+                _tmp += _rho * mt.log(_rho / j[0])
+                _tmp += (1 - _rho) * mt.log((1 - _rho) / (1 - j[0])) 
 
         return self.mBeta * _tmp
 
@@ -143,11 +151,11 @@ class NEURAL_NETWORK(object):
     def save_state(self, fName):
 
         for i in np.arange(len(self.mWeights)):
-            _str = "states/" + fName + "_W" + str(i) + ".txt"
+            _str = "../states/" + fName + "_W" + str(i) + ".txt"
             np.savetxt(_str, self.mWeights[i])
 
         for i in np.arange(len(self.mBiases)):
-            _str = "states/" + fName + "_B" + str(i) + ".txt"
+            _str = "../states/" + fName + "_B" + str(i) + ".txt"
             np.savetxt(_str, self.mBiases[i])
 
 #####################################################################
@@ -156,18 +164,18 @@ class NEURAL_NETWORK(object):
     def load_state(self, fName):
 
         for i in np.arange(len(self.mWeights)):
-            _str = "states/" + fName + "_W" + str(i) + ".txt"
+            _str = "../states/" + fName + "_W" + str(i) + ".txt"
             try:
                 self.mWeights[i] = np.loadtxt(_str)
             except IOError:
-                print "Keep random initialization for W2..."
+                print "Random initialization for W{0}".format(i)
 
         for i in np.arange(len(self.mBiases)):
-            _str = "states/" + fName + "_B" + str(i) + ".txt"
+            _str = "../states/" + fName + "_B" + str(i) + ".txt"
             try:
                 self.mBiases[i] = np.expand_dims(np.loadtxt(_str), 1)
             except IOError:
-                print "Keep zero initialization for B2..."
+                print "Zero initialization for B{0}".format(i)
 
 #####################################################################
     
@@ -175,7 +183,7 @@ class NEURAL_NETWORK(object):
     def save_output(self, fName, fType, fOutput):
 
         _data = np.array(fOutput)        
-        _str  = "datasets/" + fName + "_" + fType + "sets.txt"
+        _str  = "../datasets/" + fName + "_" + fType + "sets.txt"
 
         np.savetxt(_str, fOutput)
 
@@ -202,7 +210,7 @@ class NEURAL_NETWORK(object):
 
         self.mIndex = k + 1
         
-        return _trainsets, _testsets
+        return gpu.garray(_trainsets), gpu.garray(_testsets)
 
 #####################################################################
 
@@ -211,7 +219,7 @@ class NEURAL_NETWORK(object):
         plt.plot(fAbs, fOrd)
 
         if fName is not None:
-            plt.savefig(fName)
+            plt.savefig("../img/" + fName)
         else:
             plt.show()
 
