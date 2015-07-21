@@ -5,8 +5,8 @@ def sigmoid(fX, fCoef=1):
 
 #####################################################################
 
-def binary(fDatasets, fThresholds=0.5):
+def binary(fDataset, fThresholds=0.5):
 
     print "Binarization of the datasets..."
     
-    return np.array([[1 if j > fThresholds else 0 for j in i] for i in fDatasets])
+    return np.array([[1 if j > fThresholds else 0 for j in i] for i in fDataset])

@@ -1,10 +1,9 @@
 from neural_network import NEURAL_NETWORK
 
-import numpy as np
-import tools as tl
-import time  as tm
-
-import matplotlib.pyplot as plt
+import numpy   as np
+import tools   as tl
+import time    as tm
+import display as dy
 
 class RBM(NEURAL_NETWORK):
 
@@ -36,7 +35,8 @@ class RBM(NEURAL_NETWORK):
 
         _sigm = self.up_propagation_probability(fInput)
 
-        _activation = np.random.binomial(1, _sigm, _sigm.shape)
+        _activation = _sigm
+        # _activation = np.random.binomial(1, _sigm, _sigm.shape)
 
         return _activation
         
@@ -54,17 +54,19 @@ class RBM(NEURAL_NETWORK):
 
         _sigm = self.down_propagation_probability(fInput)
 
-        _activation = np.random.binomial(1, _sigm, _sigm.shape)
+        _activation = _sigm
+        # _activation = np.random.binomial(1, _sigm, _sigm.shape)
 
         return _activation
 
 #####################################################################
-    
-    def gibbs_sampling(self, fInput):
 
+    # Gibbs sampling
+    def propagation(self, fInput):
+    
         _data = []; _reconstruction = []
         
-        _data.append(fInput)
+        _data.append(fInput)        
         _hid = self.h_given_v(fInput)
         _data.append(_hid)
 
@@ -83,14 +85,11 @@ class RBM(NEURAL_NETWORK):
 
         _eps = self.mEpsilon
         _dec = self.mTeta
-        _mom = self.mMomentum
         
         # Weights update
         _grad  = (np.dot(fData[1], fData[0].T) - np.dot(fReco[1], fReco[0].T)) / fSize
 
-        self.mDWgrad[0] = _eps * (_grad - _dec * self.mWeights[0]) + _mom * self.mDWgrad[0]
-        
-        self.mWeights[0] += self.mDWgrad[0]
+        self.mWeights[0] += _eps * (_grad - _dec * self.mWeights[0])
         self.mWeights[1]  = self.mWeights[0].T
 
         # Biases update
@@ -102,53 +101,38 @@ class RBM(NEURAL_NETWORK):
 
     def train(self, fSets, fIter, fSize, fName):
 
+        print "Training..."
+        
         _sets  = tl.binary(fSets[0])
         _gcost = []
         _done  = fIter
 
-        _train = _sets
-        self.mCycle = 1
-
         n = len(_sets) / fSize
 
-        print "Training..."
         for i in xrange(fIter):
 
-            _benchmark = tm.clock()
+            _benchmark = tm.time()
             _gcost.append(0)
             
             for j in xrange(self.mCycle):
 
-                # _train, _test = self.cross_validation(_sets)
-                
-                _lcost = 0
+                _train, _test = self.cross_validation(_sets)
                 
                 for k in xrange(n):
 
-                    # _clock = tm.clock()
                     # Inputs and labels batch
-                    _input = self.build_batch(_train, fSize)
-                    # print "Inputs built in", tm.clock() - _clock
-
-                    # _clock = tm.clock()
-                    # Gibbs sampling over k-iterations
-                    _data, _reco = self.gibbs_sampling(_input)
-                    # print "Samples built in", tm.clock() - _clock
+                    _input = self.build_batch(_train, None, fSize)
                     
-                    # Cost over batch
-                    _lcost += self.computation_cost(_reco[0],
-                                                    _data[0])
+                    # Gibbs sampling over k-iterations
+                    _data, _reco = self.propagation(_input)
 
-                    # _clock = tm.clock()
                     # Update weights and biases
                     self.update(_data, _reco, fSize)
-                    # print "Update done in", tm.clock() - _clock
 
-                # Global cost update in a cycle
-                _gcost[i] += self.global_cost(_lcost / len(_sets))
+                _gcost[i] += self.evaluate(_test)
 
             # Iteration information
-            _benchmark = tm.clock() - _benchmark    
+            _benchmark = tm.time() - _benchmark    
             print "Iteration {0} in {1}s".format(i, _benchmark)
                 
             # Global cost for one cycle
@@ -157,52 +141,53 @@ class RBM(NEURAL_NETWORK):
 
             # Learning rate update
             if(i > 0):
-                self.decrease_learning_rate(_gcost[i-1], _gcost[i])
-
-                if(abs(_gcost[i] - _gcost[i-1]) < 0.00001):
-                    _done = i
+                if(abs(_gcost[i-1] - _gcost[i]) < 0.001 or
+                       _gcost[i-1] - _gcost[i]  < 0):
+                    _done = i + 1
                     break
 
-        self.plot(xrange(_done), _gcost, "img/"+ fName +"_cost.png")
+        self.plot(xrange(_done), _gcost, fName, "_cost.png")
+
+        return _data[1]
 
 #####################################################################
 
-    def test(self, fSets):
+    def evaluate(self, fTests):
+
+        _cost = 0
+            
+        for data in fTests:
+            _in = data.reshape(len(data), 1)
+            _data, _reco = self.propagation(_in)                
+            _cost += self.propagation_cost(_reco[0], _data[0])
+                
+        return _cost / len(fTests)
+
+#####################################################################
+
+    def test(self, fSets, fName, fPsize):
 
         print "Testing the neural networks..."
         
-        _gcost = 0
+        _cost  = 0
         _out   = []
-        fSets  = tl.binary(fSets)
             
-        for i in xrange(len(fSets)):
-            
-            _input = self.build_batch(fSets, 1, [1])
-
-            _data, _reco = self.gibbs_sampling(_input)
-                
-            _gcost += self.computation_cost(_reco[0], _data[0])
-
+        for data in tl.binary(fSets):
+            _in = data.reshape(len(data), 1)
+            _data, _reco = self.propagation(_in)                
+            _cost += self.propagation_cost(_reco[0], _data[0])
             _out.append(_reco[0])
                 
-        _gcost = _gcost / len(fSets)
-        print "Global cost of iteration : ", _gcost
+        _cost = _cost / len(fSets)
+        print "Cost :", _cost
 
-        return _out
-
-#####################################################################
-# FOR DEEP NEURAL NETWORKS
-#####################################################################
+        # Displaying the results
+        dy.display(fName, [fSets, _out], len(fSets), fPsize, "out")
     
-    # Create a new datasets for next layers
-    def create_datasets(self, fSets):
+        # Save output in order to have a testset for next layers
+        self.save_output(fName, "test", _out)
 
-        fSets = tl.binary(fSets)
-        _out  = []
-
-        for data in fSets:
-
-            _input = data.reshape(len(data),1)
-            _out.append(self.h_given_v(_input))
-            
-        return _out
+        # Approximated vision of first hidden layer neurons
+        _res = self.neurons_visions()
+        dy.display(fName, [_res], self.mNeurons[1], fPsize,
+                   "neurons", 5, 5)

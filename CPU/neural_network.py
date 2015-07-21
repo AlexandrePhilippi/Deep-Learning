@@ -5,22 +5,19 @@ import matplotlib.pyplot as plt
 class NEURAL_NETWORK(object):
 
     def __init__(self, fNbLayers, fNeurons):
-
+        
         # Learning rate
         self.mEpsilon   = 0.0001
 
         # Regularization coefficient
-        self.mTeta      = 0.05
+        self.mTeta      = 0.005
 
         # Sparsity parameters
-        self.mRho       = 0.01
+        self.mRho       = 0.1
 
         # Sparsity coefficient
-        self.mBeta      = 3   
+        self.mBeta      = 3
 
-        # Momentum
-        self.mMomentum  = 0.001
-        
         # Numbers of layers
         self.mNbLayers  = fNbLayers
 
@@ -34,7 +31,7 @@ class NEURAL_NETWORK(object):
 
         # Random initialization to avoid symetrical evolution
         self.mWeights = []
-        self.mDWgrad  = []
+        self.mDWgrads = []
         
         for i in xrange(self.mNbLayers - 1):
             _nIn  = fNeurons[i]
@@ -46,18 +43,93 @@ class NEURAL_NETWORK(object):
             _tmp = np.random.uniform(_min, _max, (_nOut, _nIn))
 
             self.mWeights.append(_tmp)
-            self.mDWgrad.append(np.zeros((_nOut, _nIn)))
+            self.mDWgrads.append(np.zeros((_nOut, _nIn))
 
         # Initialization to zeros' vector
         self.mBiases = []
 
         for i in xrange(1, self.mNbLayers):
             self.mBiases.append(np.zeros((fNeurons[i],1)))
+            
+#####################################################################
+# SETS PREPARATION AND RESULTS VISUALIZATION
+#####################################################################
+
+    # Cross validation set
+    def cross_validation(self, fSets, fLbls=None):
+
+        _slice      = self.mSlice
+        k           = self.mIndex % self.mCycle
+        self.mIndex = k + 1
+
+        _trainsets = fSets[0:k*_slice, :]
+
+        if k == 0:
+            _trainsets = fSets[(k+1)*_slice:len(fSets), :]
+            
+        else:
+            np.vstack((_trainsets,
+                       fSets[(k+1)*_slice:len(fSets), :]))
+    
+        _testsets = fSets[k*_slice:(k+1)*_slice, :]
+
+        #########################################################
+        # Only for decision making
+        if fLbls is not None:
+            _trainlbls = fLbls[0:k*_slice]
+            
+            if k == 0:
+                _trainlbls = fLbls[(k+1)*_slice:len(fLbls)]
+
+            else:
+                np.hstack((_trainlbls,
+                           fLbls[(k+1)*_slice:len(fLbls)]))
+
+            _testlbls = fLbls[k*_slice:(k+1)*_slice]
+
+            return (_trainsets, _trainlbls), (_testsets, _testlbls)
+        ###########################################################
+                
+        return _trainsets, _testsets
+
+#####################################################################
+
+    def build_batch(self, fSets, fLbls, fSize, fIndex=None):
+
+        if fIndex is None:
+            fIndex = np.random.randint(len(fSets), size=fSize)
+
+        _sets = fSets[fIndex,:].T
+
+        ###############################################
+        # Only for decision making
+        if fLbls is not None:
+            _lbls = np.zeros((self.mNeurons[-1], fSize))
+
+            for l in xrange(fSize):
+                _lbls[fLbls[fIndex[l]]][l] = 1
+
+            return _sets, _lbls
+        ###############################################
+                
+        return _sets
     
 #####################################################################
 
-    # Compute an approximation of neurons vision from first hidden
-    # layer
+    def plot(self, fAbs, fOrd, fName, fType):
+
+        plt.plot(fAbs, fOrd)
+
+        if fName is not None:
+            plt.savefig("../img/" + fName + fType)
+        else:
+            plt.show()
+
+        plt.close()
+
+#####################################################################
+            
+    # Neurons vision from first hidden layer
     def neurons_visions(self):
 
         print "Building an approximate neurons vision..."
@@ -80,11 +152,11 @@ class NEURAL_NETWORK(object):
         return _img
 
 #####################################################################
-# FOLLOWING METHODS USED FOR COST COMPUTATION    
+# COST PROPAGATION    
 #####################################################################
     
     # Compute the average cost obtained with a set of train inputs
-    def computation_cost(self, fOutput, fInput):
+    def propagation_cost(self, fOutput, fInput):
 
         return np.sum((fOutput - fInput)**2) / 2.
 
@@ -109,7 +181,7 @@ class NEURAL_NETWORK(object):
 #####################################################################
     
     # Compute the average activation of a neurons
-    def average_activation(self, fHid):
+    def average_activation(self, fHid, fSize):
 
         return [fHid[i].mean(1, keepdims=True) for i in xrange(1, self.mNbLayers-1)]
 
@@ -136,18 +208,21 @@ class NEURAL_NETWORK(object):
         return fCost + self.regularization() + self.sparsity(fAvg)
 
 #####################################################################
-# FOLLOWING METHODS USED FOR BACKUP AND MULTILAYERS TRAINING
+# BACKUP
 #####################################################################
 
     # Save the weights and biases computed in a textfile
     def save_state(self, fName):
 
+        if fName is None:
+            return
+        
         for i in np.arange(len(self.mWeights)):
-            _str = "states/" + fName + "_W" + str(i) + ".txt"
+            _str = "../states/" + fName + "_W" + str(i) + ".txt"
             np.savetxt(_str, self.mWeights[i])
 
         for i in np.arange(len(self.mBiases)):
-            _str = "states/" + fName + "_B" + str(i) + ".txt"
+            _str = "../states/" + fName + "_B" + str(i) + ".txt"
             np.savetxt(_str, self.mBiases[i])
 
 #####################################################################
@@ -155,15 +230,18 @@ class NEURAL_NETWORK(object):
     # Load the weights and biases computed from a textfile
     def load_state(self, fName):
 
+        if fName is None:
+            return
+        
         for i in np.arange(len(self.mWeights)):
-            _str = "states/" + fName + "_W" + str(i) + ".txt"
+            _str = "../states/" + fName + "_W" + str(i) + ".txt"
             try:
                 self.mWeights[i] = np.loadtxt(_str)
             except IOError:
                 print "Keep random initialization for W2..."
 
         for i in np.arange(len(self.mBiases)):
-            _str = "states/" + fName + "_B" + str(i) + ".txt"
+            _str = "../states/" + fName + "_B" + str(i) + ".txt"
             try:
                 self.mBiases[i] = np.expand_dims(np.loadtxt(_str), 1)
             except IOError:
@@ -174,64 +252,88 @@ class NEURAL_NETWORK(object):
     # Use to create a new datasets for next layers
     def save_output(self, fName, fType, fOutput):
 
-        _data = np.array(fOutput)        
-        _str  = "datasets/" + fName + "_" + fType + "sets.txt"
+        if fName is None:
+            return
+        
+        _str  = "../datasets/" + fName + "_" + fType + "sets.txt"
 
         np.savetxt(_str, fOutput)
 
 #####################################################################
-# FOLLOWING METHODS USED FOR CODE SIMPLIFICATIONS
+# VERIFICATIONS
 #####################################################################
-
-    # Cross validation set
-    def cross_validation(self, fSets):
-
-        _slice = self.mSlice
-        k      = self.mIndex % self.mCycle
-
-        _trainsets = fSets[0:k*_slice, :]
-
-        if k == 0:
-            _trainsets = fSets[(k+1)*_slice:len(fSets), :]
-            
-        else:
-            np.vstack((_trainsets,
-                       fSets[(k+1)*_slice:len(fSets), :]))
     
-        _testsets = fSets[k*_slice:(k+1)*_slice, :]
+    # Compute numerical gradient value in order to check results
+    def numerical_gradient(self, fInput, fRef, fSize):
 
-        self.mIndex = k + 1
+        _numWgrad = []
+        _numBgrad = []
+
+        # Numerical gradient according to W
+        print "\t Numerical gradient according to Weights."
+        for i in np.arange(len(self.mWeights)):
+
+            print "\t \t -> Layer", i + 1
+            _m = np.zeros(self.mWeights[i].shape)
+            
+            for j in np.arange(len(self.mWeights[i])):
+                for k in np.arange(len(self.mWeights[i][j])):
+                    self.mWeights[i][j,k] += self.mEpsilon
+                    _left = self.output_and_cost(fInput, fRef)
+
+                    self.mWeights[i][j,k] -= 2. * self.mEpsilon
+                    _right = self.output_and_cost(fInput, fRef)
+
+                    _res = (_left[1] - _right[1])/(2.*self.mEpsilon)
+                    _m[j][k] = _res / fSize
+                    
+                    self.mWeights[i][j,k] += self.mEpsilon
+
+            _numWgrad.append(_m)
+
+        # Numerical gradient according to b
+        print "\t Numerical gradient according to Biases."    
+        for i in np.arange(len(self.mBiases)):
+
+            print "\t \t -> Layer", i + 1
+            _v = np.zeros(self.mBiases[i].shape)
+            
+            for j in np.arange(len(self.mBiases[i])):
+            
+                self.mBiases[i][j] += self.mEpsilon
+                _left = self.output_and_cost(fInput, fRef)
+
+                self.mBiases[i][j] -= 2. * self.mEpsilon
+                _right = self.output_and_cost(fInput, fRef)
+
+                _res  = (_left[1] - _right[1]) / (2. * self.mEpsilon)
+                _v[j] = _res / fSize
+                
+                self.mBiases[i][j] += self.mEpsilon
+
+            _numBgrad.append(_v)
+                      
+        return _numWgrad, _numBgrad
+
+#####################################################################
+    
+    # Check gradient results
+    def gradient_checking(self, _nWgrad, _nBgrad, _wGrad, _bGrad):
+
+        _wError = np.zeros(len(_nWgrad))
+        _bError = np.zeros(len(_nBgrad))
         
-        return _trainsets, _testsets
+        for i in np.arange(len(_nWgrad)):
+            _wError[i]  = np.linalg.norm(_nWgrad[i] - _wGrad[i]) / np.linalg.norm(_nWgrad[i] + _wGrad[i])
 
-#####################################################################
+        for i in np.arange(len(_nBgrad)):
+            _bError[i]  = np.linalg.norm(_nBgrad[i] - _bGrad[i]) / np.linalg.norm(_nBgrad[i] + _bGrad[i])
 
-    def plot(self, fAbs, fOrd, fName):
+        print _wError
+        print _bError
 
-        plt.plot(fAbs, fOrd)
 
-        if fName is not None:
-            plt.savefig(fName)
-        else:
-            plt.show()
-
-        plt.close()
-
-#####################################################################
-
-    def build_batch(self, fSets, fSize, fIndex=None):
-
-        if fIndex is None:
-            fIndex = np.random.randint(len(fSets), size=fSize)
-
-        return fSets[fIndex,:].T
-
-#####################################################################
         
-    # Update the learning rates according to cost variation
-    def decrease_learning_rate(self, fPrev, fCurr):
 
-        if(fPrev > 0):
-            if(fPrev - fCurr < 0.0001):
-                self.mEpsilon = 0.9 * self.mEpsilon
-                print "Learning rate decrease... %f" % self.mEpsilon
+        
+            

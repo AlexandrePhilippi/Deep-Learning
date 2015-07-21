@@ -6,7 +6,6 @@ def launcher(argv):
 
     # Parameter initialization
     _imgSize     = 784
-    _nbPatch     = 60000
     _pSize       = (28,28)
     _neuronsList = [_imgSize, 25, _imgSize]
     _iter        = 2000
@@ -41,10 +40,12 @@ def launcher(argv):
             _neuronsList = map(int, arg.split(','))
 
         elif opt == '-t':
-            _type = int(arg)
+            _type = arg
 
     for i in np.arange(len(_neuronsList) / 2):
 
+        print "Training {0} layer.".format{i}
+        
         # Use MNIST or intermediate dataset
         try:
             _str
