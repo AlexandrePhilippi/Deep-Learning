@@ -8,16 +8,15 @@ import sys, getopt
 def main(argv):
 
     # Parameter initialization
-    _imgSize     = 784
     _pSize       = (28,28)
-    _neuronsList = [_imgSize, 25, _imgSize]
+    _neuronsList = [784, 25, 784]
     _iter        = 2000
     _batchSize   = 50
     _type        = "AC"
 
-    _savename    = None
+    _savename    = "default"
     _loadname    = None
-    _dataname    = None
+    _dataname    = "MNIST"
 
     # Some can be passed in argument
     try:
@@ -68,11 +67,17 @@ def main(argv):
     _nnet.load_state(_loadname)
 
     # Loading the MNIST datasets for training
-    if _dataname is not None:
-        _train = ld.load_datasets(_dataname, "train")
+    if _dataname == "MNIST":
+        _train = [ld.mnist_train_img("../datasets/mnist"),
+                  ld.mnist_train_lbl("../datasets/mnist")]
+
+    elif _dataname == "CIFAR":
+        _train = ld.cifar_10_train("../datasets/cifar-10")
+        
     else:
-        _train = [ld.mnist_train_img("../datasets"),
-                  ld.mnist_train_lbl("../datasets")]
+        _train = ld.load_datasets(_dataname, "train")
+
+
 
     # Training the network
     _out = _nnet.train(_train, _iter, _batchSize, _savename)
@@ -81,14 +86,19 @@ def main(argv):
     _nnet.save_state(_savename)
 
     # Save output if _savename is given
-    _nnet.save_output(_savename, "train", _out)
+    if _type != "DC" :
+        _nnet.save_output(_savename, "train", _out)
 
     # Loading the MNIST datasets for testing    
-    if _dataname is not None:
-        _test = ld.load_datasets(_dataname, "test")
+    if _dataname == "MNIST":
+        _test = [ld.mnist_test_img("../datasets/mnist"),
+                 ld.mnist_test_lbl("../datasets/mnist")]
+
+    elif _dataname == "CIFAR":
+        _test = ld.cifar_10_test("../datasets/cifar-10")
+        
     else:
-        _test = [ld.mnist_test_img("../datasets"),
-                 ld.mnist_test_lbl("../datasets")]
+        _test = ld.load_datasets(_dataname, "test")
 
     # Testing the network
     if _type == "DC":

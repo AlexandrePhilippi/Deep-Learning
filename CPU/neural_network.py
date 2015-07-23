@@ -7,16 +7,21 @@ class NEURAL_NETWORK(object):
     def __init__(self, fNbLayers, fNeurons):
         
         # Learning rate
-        self.mEpsilon   = 0.0001
+        self.mEpsilon  = np.ones(fNbLayers-1) * 0.1
 
         # Regularization coefficient
-        self.mTeta      = 0.005
+        self.mTeta     = 0.05
 
         # Sparsity parameters
-        self.mRho       = 0.1
+        self.mRho      = 0.1
 
         # Sparsity coefficient
-        self.mBeta      = 3
+        self.mBeta     = 3
+
+        # Momentum
+        self.mMomentum = np.ones(fNbLayers-1) * 0.5
+        
+        self.mLambda   = 0.7
 
         # Numbers of layers
         self.mNbLayers  = fNbLayers
@@ -31,7 +36,6 @@ class NEURAL_NETWORK(object):
 
         # Random initialization to avoid symetrical evolution
         self.mWeights = []
-        self.mDWgrads = []
         
         for i in xrange(self.mNbLayers - 1):
             _nIn  = fNeurons[i]
@@ -43,7 +47,6 @@ class NEURAL_NETWORK(object):
             _tmp = np.random.uniform(_min, _max, (_nOut, _nIn))
 
             self.mWeights.append(_tmp)
-            self.mDWgrads.append(np.zeros((_nOut, _nIn))
 
         # Initialization to zeros' vector
         self.mBiases = []
@@ -332,8 +335,20 @@ class NEURAL_NETWORK(object):
         print _wError
         print _bError
 
-
+#####################################################################
+# ADAPTIVE LEARNING RATE
+#####################################################################
         
+    def grad_dir_angle(self, fVar, fGrad):
 
+        return np.sum(-fGrad * fVar) / (np.linalg.norm(fGrad) * np.linalg.norm(fVar))
+
+    def angle_driven_approach(self, fVar, fGrad):
         
-            
+        for i in xrange(self.mNbLayers-1):
+
+            # Learning rate update
+            self.mEpsilon[i]  *= (1 + 0.5 * self.grad_dir_angle(fVar[i], fGrad[i]))
+
+            # Momentum update
+            self.mMomentum[i] *= (self.mLambda * self.mEpsilon[i] * np.linalg.norm(fGrad[i]) / np.linalg.norm(fVar[i]))

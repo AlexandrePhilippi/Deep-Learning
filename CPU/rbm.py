@@ -78,18 +78,22 @@ class RBM(NEURAL_NETWORK):
         _reconstruction.append(_hid)
 
         return _data, _reconstruction
+
+#####################################################################
+    
+    def compute_grad(self, fData, fReco, fSize):
+
+        return (np.dot(fData[1], fData[0].T) - np.dot(fReco[1], fReco[0].T)) / fSize
     
 #####################################################################
 
-    def update(self, fData, fReco, fSize):
+    def update(self, fData, fReco, fGrad):
 
         _eps = self.mEpsilon
         _dec = self.mTeta
-        
+    
         # Weights update
-        _grad  = (np.dot(fData[1], fData[0].T) - np.dot(fReco[1], fReco[0].T)) / fSize
-
-        self.mWeights[0] += _eps * (_grad - _dec * self.mWeights[0])
+        self.mWeights[0] += _eps * (fGrad - _dec * self.mWeights[0])
         self.mWeights[1]  = self.mWeights[0].T
 
         # Biases update
@@ -107,12 +111,15 @@ class RBM(NEURAL_NETWORK):
         _gcost = []
         _done  = fIter
 
+        # Batch-subiteration index 
         n = len(_sets) / fSize
 
         for i in xrange(fIter):
 
             _benchmark = tm.time()
             _gcost.append(0)
+
+            _out = []
             
             for j in xrange(self.mCycle):
 
@@ -126,8 +133,14 @@ class RBM(NEURAL_NETWORK):
                     # Gibbs sampling over k-iterations
                     _data, _reco = self.propagation(_input)
 
+                    # Gradient
+                    _grad = self.compute_grad(_data, _reco, fSize)
+                    
                     # Update weights and biases
-                    self.update(_data, _reco, fSize)
+                    self.update(_data, _reco, _grad)
+
+                    # Preparing set for next layers
+                    _out.extend(_data[1])
 
                 _gcost[i] += self.evaluate(_test)
 
@@ -148,7 +161,7 @@ class RBM(NEURAL_NETWORK):
 
         self.plot(xrange(_done), _gcost, fName, "_cost.png")
 
-        return _data[1]
+        return _out
 
 #####################################################################
 

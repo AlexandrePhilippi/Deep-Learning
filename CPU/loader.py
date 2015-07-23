@@ -1,15 +1,16 @@
-import numpy as np
+import numpy     as np
 import scipy.io  as sio
 import random    as rd
+import cPickle   as cp
 
 import os
 import struct
 
 from array import array
 
-######################################################################
+#####################################################################
 # MNIST database
-######################################################################
+#####################################################################
 def mnist_test_lbl(fPath):
     _testLblFname = 't10k-labels-idx1-ubyte'
     _pathTestLbl = os.path.join(fPath, _testLblFname)
@@ -43,8 +44,8 @@ def mnist_train_img(fPath):
     _trImg = load_mnist_img(_pathTrainImg)
     return _trImg
 
-def load_mnist_img(fPathImg):
-    with open(fPathImg, 'rb') as file:
+def load_mnist_img(fPath):
+    with open(fPath, 'rb') as file:
         _magic, _size, _rows, _cols = struct.unpack(">IIII", file.read(16))
         if _magic != 2051:
             raise ValueError('Magic number mismatch, expected 2051,'
@@ -54,9 +55,49 @@ def load_mnist_img(fPathImg):
 
         return np.asarray(_imgData).reshape(_size, _cols*_rows)/255.
 
-######################################################################
+#####################################################################
+# Cifar-10 file
+#####################################################################
+def normalize_cifar_set(fDict):
+
+    _imgs = np.zeros((10000*len(fDict), 1024))
+    _lbls = np.zeros(10000*len(fDict))
+
+    for i in xrange(len(fDict)):
+    
+        for _type, _dt in fDict[i].items():
+
+            if _type == "data":
+                _imgs[i*len(_dt):(i+1)*len(_dt),:] = (_dt[:,0:1024] + _dt[:,1024:2048] + _dt[:,2048:3072])
+            
+            elif _type == "labels":
+                _lbls[i*len(_dt):(i+1)*len(_dt)] = _dt            
+
+    return _imgs / (3 * 255), _lbls
+            
+def cifar_10_train(fPath):
+
+    _dict = []
+    
+    for i in xrange(1,7):
+        _file = open(fPath + "/data_batch_" + str(i), "rb")
+        _dict.append(cp.load(_file))
+        _file.close()        
+
+    return normalize_cifar_set(_dict)
+        
+def cifar_10_test(fPath):
+    
+    _file = open(fPath + "/test_batch", "rb")
+    _dict = cp.load(_file)
+    _file.close()
+
+    return normalize_cifar_set([_dict])
+
+    
+#####################################################################
 # Matlab file
-######################################################################
+#####################################################################
 def matlab_file(fPath, fName, fNbPatches, fSize, fPatchSize):
 
     _path = os.path.join(fPath, fName + ".mat")        
@@ -86,9 +127,9 @@ def subpicture(fSrc, fNbPatches, fSize, fPatchSize):
 
     return np.array(_sets)
 
-######################################################################
+#####################################################################
 # Temporary datasets
-######################################################################
+#####################################################################
 
 def load_datasets(fDataname, fType):
 

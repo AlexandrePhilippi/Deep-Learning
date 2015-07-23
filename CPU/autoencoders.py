@@ -70,14 +70,23 @@ class AUTOENCODERS(NEURAL_NETWORK):
         return _wGrad, _bGrad
 
 #####################################################################
+
+    def weight_variation(self, fVar, fWGrad):
+
+        return [-self.mEpsilon[i] * fWGrad[i] + self.mMomentum[i] * fVar[i] for i in xrange(self.mNbLayers-1)]
+
+#####################################################################
     
     # Update weights and biases parameters with gradient descent
-    def update(self, fWGrad, fBGrad):
+    def update(self, fVar, fBGrad):
 
-        for i in xrange(self.mNbLayers - 1):
-            self.mWeights[i] -= self.mEpsilon * (self.mTeta * self.mWeights[i] + fWGrad[i])
+        for i in xrange(self.mNbLayers-1):
+            
+            # Update weights
+            self.mWeights[i] += fVar[i]
 
-            self.mBiases[i]  -= self.mEpsilon * fBGrad[i]
+            # Update biases
+            self.mBiases[i]  -= self.mEpsilon[i] * fBGrad[i]
 
 #####################################################################
     
@@ -113,25 +122,26 @@ class AUTOENCODERS(NEURAL_NETWORK):
     # Algorithm which train the neural network to reduce cost
     def train(self, fSets, fIter, fSize, fName):
 
-        _sets  = fSets[0] 
+        print "Training..."
+        
+        _sets  = fSets[0]
+        _var   = [np.zeros(_w.shape) for _w in self.mWeights]
         _gcost = []
+        _gtime = []
+        
         _done  = fIter
 
-        # Batch-subiteration index 
-        n = len(_sets) / fSize
-        
-        print "Training..."
         for i in xrange(fIter):
 
-            _benchmark = tm.time()
+            _gtime.append(tm.time())
             _gcost.append(0)
             
             for j in xrange(self.mCycle):
                 
                 _train, _test = self.cross_validation(_sets)
 
-                for k in xrange(n):
-                    
+                for k in xrange(len(_sets) / fSize):
+
                     # Only for gradient checking
                     # self.mBeta = 0
                     # self.mTeta = 0
@@ -149,29 +159,36 @@ class AUTOENCODERS(NEURAL_NETWORK):
                     # self.gradient_checking(_grad[0], _grad[1],
                     #                        _ret[1] , _ret[2])
 
+                    # Adapt learning rate
+                    if(i > 0 or j > 0 or k > 0):
+                        self.angle_driven_approach(_var, _ret[1])
+
+                    # Weight variation computation
+                    _var = self.weight_variation(_var, _ret[1])
+                        
                     # Update weights and biases
-                    self.update(_ret[1], _ret[2])
+                    self.update(_var, _ret[2])
 
                 _gcost[i] += self.evaluate(_test)
 
             # Iteration information
-            _benchmark = tm.time() - _benchmark
-            print "Iteration {0} in {1}s".format(i, _benchmark)    
+            _gtime[i] = tm.time() - _gtime[i]
+            print "Iteration {0} in {1}s".format(i, _gtime[i])    
 
             # Global cost for one cycle
             _gcost[i] /= self.mCycle
-            print "Global cost of iteration :", _gcost[i]
+            print "Cost of iteration : {0}".format(_gcost[i])
 
             # Learning rate update
             if(i > 0):
-                if(abs(_gcost[i-1] - _gcost[i]) < 0.001 or
-                       _gcost[i-1] - _gcost[i]  < 0):
+                if(abs(_gcost[i-1] - _gcost[i]) < 0.001):
                     _done = i + 1
                     break
 
         self.plot(xrange(_done), _gcost, fName, "_cost.png")
+        self.plot(xrange(_done), _gtime, fName, "_time.png")        
 
-        return _ret[0]
+        return self.propagation(_sets.T)[1]
 
 #####################################################################
 
@@ -205,7 +222,7 @@ class AUTOENCODERS(NEURAL_NETWORK):
         print "Cost :", _cost
         
         # Displaying the results
-        dy.display(fName, [fSet, _out], len(fSet), fPsize, "out")
+        dy.display(fName, [fSets, _out], len(fSets), fPsize, "out")
     
         # Save output in order to have a testset for next layers
         self.save_output(fName, "test", _out)
