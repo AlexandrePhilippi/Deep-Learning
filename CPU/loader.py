@@ -68,12 +68,12 @@ def normalize_cifar_set(fDict):
         for _type, _dt in fDict[i].items():
 
             if _type == "data":
-                _imgs[i*len(_dt):(i+1)*len(_dt),:] = (_dt[:,0:1024] + _dt[:,1024:2048] + _dt[:,2048:3072])
-            
+                _imgs[i*len(_dt):(i+1)*len(_dt),:] = (_dt[:,0:1024] / 3. + _dt[:,1024:2048] / 3. + _dt[:,2048:3072] / 3.)
+
             elif _type == "labels":
                 _lbls[i*len(_dt):(i+1)*len(_dt)] = _dt            
-
-    return _imgs / (3 * 255), _lbls
+                
+    return _imgs / 255, _lbls
             
 def cifar_10_train(fPath):
 
@@ -133,8 +133,5 @@ def subpicture(fSrc, fNbPatches, fSize, fPatchSize):
 
 def load_datasets(fDataname, fType):
 
-    _tmp = np.loadtxt("datasets/"+fDataname+"_"+fType+"sets.txt")
-
-    return _tmp
-
+    return np.loadtxt("../datasets/"+fDataname+"_"+fType+"sets.txt")
     

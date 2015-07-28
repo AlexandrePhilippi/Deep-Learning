@@ -32,23 +32,13 @@ class AUTOENCODERS(NEURAL_NETWORK):
     # Compute all the locals error in order to compute gradient
     def compute_layer_error(self, fOut, fIn, fSize):
 
-        # Sparsity coefficients
-        _beta = self.mBeta
-        _rho  = self.mRho
-
-        # Average activation
-        _avg = self.average_activation(fOut, fSize)
-        
-        _err  = []
-
         # Last layer local error
+        _err = []
         _err.append((fOut[-1] - fIn) * fOut[-1] * (1 - fOut[-1]))
 
         # Intermediate layer local error
         for i in xrange(1, self.mNbLayers - 1):
-            _sparsity = -_rho / _avg[-i] + (1 - _rho)/(1 - _avg[-i])
-            
-            _err.append((np.dot(self.mWeights[-i].T, _err[i-1]) + _beta * _sparsity) * fOut[-i-1] * (1 - fOut[-i-1]))
+            _err.append((np.dot(self.mWeights[-i].T, _err[i-1])) * fOut[-i-1] * (1 - fOut[-i-1]))
             
         _err.reverse()
 
@@ -123,7 +113,7 @@ class AUTOENCODERS(NEURAL_NETWORK):
     def train(self, fSets, fIter, fSize, fName):
 
         print "Training..."
-        
+
         _sets  = fSets[0]
         _var   = [np.zeros(_w.shape) for _w in self.mWeights]
         _gcost = []
@@ -141,10 +131,6 @@ class AUTOENCODERS(NEURAL_NETWORK):
                 _train, _test = self.cross_validation(_sets)
 
                 for k in xrange(len(_sets) / fSize):
-
-                    # Only for gradient checking
-                    # self.mBeta = 0
-                    # self.mTeta = 0
                     
                     # Inputs and labels batch
                     _in = self.build_batch(_train, None, fSize)
@@ -188,7 +174,7 @@ class AUTOENCODERS(NEURAL_NETWORK):
         self.plot(xrange(_done), _gcost, fName, "_cost.png")
         self.plot(xrange(_done), _gtime, fName, "_time.png")        
 
-        return self.propagation(_sets.T)[1]
+        return self.propagation(_sets.T)[1].T
 
 #####################################################################
 
@@ -206,7 +192,7 @@ class AUTOENCODERS(NEURAL_NETWORK):
 #####################################################################
 
     # Test the neural network over a test set
-    def test(self, fSets, fName, fPsize):
+    def test(self, fSets, fName):
 
         print "Testing the neural networks..."
 
@@ -220,14 +206,20 @@ class AUTOENCODERS(NEURAL_NETWORK):
 
         _cost = _cost / len(fSets)
         print "Cost :", _cost
-        
-        # Displaying the results
-        dy.display(fName, [fSets, _out], len(fSets), fPsize, "out")
-    
+
         # Save output in order to have a testset for next layers
         self.save_output(fName, "test", _out)
+        
+        # Check if it's possible to print the image
+        _psize = [np.sqrt(self.mNeurons[0]) for i in xrange(2)]
+
+        if self.mNeurons[0] != (_psize[0] * _psize[1]):
+            return
+        
+        # Displaying the results
+        dy.display(fName, [fSets, _out], len(fSets), _psize, "out")
 
         # Approximated vision of first hidden layer neurons
         _res = self.neurons_visions()
-        dy.display(fName, [_res], self.mNeurons[1], fPsize,
+        dy.display(fName, [_res], self.mNeurons[1], _psize,
                    "neurons", 5, 5)

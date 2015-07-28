@@ -9,19 +9,9 @@ class NEURAL_NETWORK(object):
         # Learning rate
         self.mEpsilon  = np.ones(fNbLayers-1) * 0.1
 
-        # Regularization coefficient
-        self.mTeta     = 0.05
-
-        # Sparsity parameters
-        self.mRho      = 0.1
-
-        # Sparsity coefficient
-        self.mBeta     = 3
-
         # Momentum
-        self.mMomentum = np.ones(fNbLayers-1) * 0.5
-        
-        self.mLambda   = 0.7
+        self.mMomentum = np.ones(fNbLayers-1) * 0.5        
+        self.mLambda   = self.mMomentum[0] / self.mEpsilon[0]
 
         # Numbers of layers
         self.mNbLayers  = fNbLayers
@@ -36,6 +26,9 @@ class NEURAL_NETWORK(object):
 
         # Random initialization to avoid symetrical evolution
         self.mWeights = []
+
+        # Initialization to zeros' vector
+        self.mBiases  = []
         
         for i in xrange(self.mNbLayers - 1):
             _nIn  = fNeurons[i]
@@ -44,15 +37,11 @@ class NEURAL_NETWORK(object):
             _min = -4 * mt.sqrt(6. / (_nIn + _nOut + 1))
             _max = -_min
             
-            _tmp = np.random.uniform(_min, _max, (_nOut, _nIn))
+            self.mWeights.append(np.random.uniform(_min,
+                                                   _max,
+                                                   (_nOut, _nIn)))
 
-            self.mWeights.append(_tmp)
-
-        # Initialization to zeros' vector
-        self.mBiases = []
-
-        for i in xrange(1, self.mNbLayers):
-            self.mBiases.append(np.zeros((fNeurons[i],1)))
+            self.mBiases.append(np.zeros((_nOut,1)))
             
 #####################################################################
 # SETS PREPARATION AND RESULTS VISUALIZATION
@@ -164,53 +153,6 @@ class NEURAL_NETWORK(object):
         return np.sum((fOutput - fInput)**2) / 2.
 
 #####################################################################
-    
-    # Compute the regularization cost to avoid weights too big
-    def regularization(self):
-
-        _tmp = 0
-        
-        for w in self.mWeights:
-            _tmp = _tmp + np.sum(w**2)
-
-        return self.mTeta * _tmp / 2
-
-#####################################################################
-
-    def init_average_list(self):
-
-        return [np.zeros((self.mNeurons[i], 1)) for i in xrange(1, self.mNbLayers-1)]
-
-#####################################################################
-    
-    # Compute the average activation of a neurons
-    def average_activation(self, fHid, fSize):
-
-        return [fHid[i].mean(1, keepdims=True) for i in xrange(1, self.mNbLayers-1)]
-
-#####################################################################
-    
-    # Compute the sparsity cost
-    def sparsity(self, fAvg):
-        
-        _rho = self.mRho
-        _tmp = 0
-
-        for rows in fAvg:
-            for j in rows:
-                _tmp += _rho * mt.log(_rho / j)
-                _tmp += (1 - _rho) * mt.log((1 - _rho) / (1 - j)) 
-
-        return self.mBeta * _tmp
-
-#####################################################################
-
-    # Sum of all costs computed
-    def global_cost(self, fCost, fAvg=[]):
-
-        return fCost + self.regularization() + self.sparsity(fAvg)
-
-#####################################################################
 # BACKUP
 #####################################################################
 
@@ -281,16 +223,16 @@ class NEURAL_NETWORK(object):
             
             for j in np.arange(len(self.mWeights[i])):
                 for k in np.arange(len(self.mWeights[i][j])):
-                    self.mWeights[i][j,k] += self.mEpsilon
+                    self.mWeights[i][j,k] += self.mEpsilon[i]
                     _left = self.output_and_cost(fInput, fRef)
 
-                    self.mWeights[i][j,k] -= 2. * self.mEpsilon
+                    self.mWeights[i][j,k] -= 2. * self.mEpsilon[i]
                     _right = self.output_and_cost(fInput, fRef)
 
-                    _res = (_left[1] - _right[1])/(2.*self.mEpsilon)
+                    _res = (_left[1]-_right[1])/(2.*self.mEpsilon[i])
                     _m[j][k] = _res / fSize
                     
-                    self.mWeights[i][j,k] += self.mEpsilon
+                    self.mWeights[i][j,k] += self.mEpsilon[i]
 
             _numWgrad.append(_m)
 
@@ -303,16 +245,16 @@ class NEURAL_NETWORK(object):
             
             for j in np.arange(len(self.mBiases[i])):
             
-                self.mBiases[i][j] += self.mEpsilon
+                self.mBiases[i][j] += self.mEpsilon[i]
                 _left = self.output_and_cost(fInput, fRef)
 
-                self.mBiases[i][j] -= 2. * self.mEpsilon
+                self.mBiases[i][j] -= 2. * self.mEpsilon[i]
                 _right = self.output_and_cost(fInput, fRef)
 
-                _res  = (_left[1] - _right[1]) / (2. * self.mEpsilon)
+                _res  = (_left[1]-_right[1])/(2.*self.mEpsilon[i])
                 _v[j] = _res / fSize
                 
-                self.mBiases[i][j] += self.mEpsilon
+                self.mBiases[i][j] += self.mEpsilon[i]
 
             _numBgrad.append(_v)
                       
@@ -351,4 +293,4 @@ class NEURAL_NETWORK(object):
             self.mEpsilon[i]  *= (1 + 0.5 * self.grad_dir_angle(fVar[i], fGrad[i]))
 
             # Momentum update
-            self.mMomentum[i] *= (self.mLambda * self.mEpsilon[i] * np.linalg.norm(fGrad[i]) / np.linalg.norm(fVar[i]))
+            self.mMomentum[i] = (self.mLambda * self.mEpsilon[i] * np.linalg.norm(fGrad[i]) / np.linalg.norm(fVar[i]))

@@ -5,21 +5,19 @@ import numpy as np
 def launcher(argv):
 
     # Parameter initialization
-    _imgSize     = 784
-    _pSize       = (28,28)
-    _neuronsList = [_imgSize, 25, _imgSize]
+    _neuronsList = [784, 25, 784]
     _iter        = 2000
     _batchSize   = 50
-    _type        = 0 # 0: Autoencoders, 1: RBM, 2: Decision
+    _type        = "AC"
 
-    _savename    = None
+    _savename    = "default"
 
     # Some can be passed in argument
     try:
         opts, args = getopt.getopt(argv, "hp:i:b:s:t:", ["list="])
 
     except getopt.GetoptError:
-        print 'launcher.py -i <nb_iters> -p <patch_size> -b <batch_size> -s <save_name> --list <neurons_list> -t <type of network>'
+        print 'launcher.py -i <nb_iters> -b <batch_size> -s <save_name> --list <neurons_list> -t <type of network>'
         sys.exit(2)
 
     for opt, arg in opts:
@@ -42,10 +40,8 @@ def launcher(argv):
         elif opt == '-t':
             _type = arg
 
-    for i in np.arange(len(_neuronsList) / 2):
+    for i in np.arange(len(_neuronsList)-1):
 
-        print "Training {0} layer.".format{i}
-        
         # Use MNIST or intermediate dataset
         try:
             _str
@@ -60,17 +56,14 @@ def launcher(argv):
         _nlist = "{0},{1},{0}".format(_neuronsList[i],
                                       _neuronsList[i+1])
 
-        # Patch dimension
-        _pSize = np.sqrt(_neuronsList[i])
-        _dim   = "{0},{0}".format(int(_pSize))
-
         # Calling main program
         if _dataname is None:
-            _call = "python main.py -i {0} -p {1} -b {2} -s {3} --list {4} -t {5}".format(_iter, _dim, _batchSize, _str, _nlist, _type)
+            _call = "python main.py -i {0} -b {1} -s {2} --list {3} -t {4}".format(_iter, _batchSize, _str, _nlist, _type)
             
         else:
-            _call = "python main.py -i {0} -p {1} -b {2} -s {3} -d {4} --list {5} -t {6}".format(_iter, _dim, _batchSize, _str, _dataname, _nlist, _type)
+            _call = "python main.py -i {0} -b {1} -s {2} -d {3} --list {4} -t {5}".format(_iter, _batchSize, _str, _dataname, _nlist, _type)
 
+        print _call            
         os.system(_call)
 
 ######################################################################
