@@ -13,49 +13,55 @@ class DECISION(AUTOENCODERS):
 #####################################################################
     
     # Algorithm which train the neural network to reduce cost
-    def train(self, fSets, fIter, fSize, fName):
+    def train(self, fSets, fIter, fSize, fName, fCyc=6, fSlc=10000):
 
-        _var   = [np.zeros(_w.shape) for _w in self.mWeights]
-        
+        print "Training..."
+
+        _wVar  = [np.zeros(_w.shape) for _w in self.mWeights]
         _gcost = []
         _gperf = []
         _gtime = []
-        
+
         _done  = fIter
+        
+        # Cross validation index
+        _idx   = 0
         
         for i in xrange(fIter):
 
             _gtime.append(tm.time())
-
             _gcost.append(0)
             _gperf.append(0)
             
-            for j in xrange(self.mCycle):
+            for j in xrange(fCyc):
 
-                _train, _test = self.cross_validation(fSets[0],
-                                                      fSets[1])
-                
-                for k in xrange(len(fSets[0]) / fSize):
+                _idx, _trn, _tst = self.cross_validation(fSets[0],
+                                                         fSets[1],
+                                                         _idx,
+                                                         fSlc,
+                                                         fCyc)
+                                                         
+                for k in xrange(len(_trn[0]) / fSize):
 
                     # Input and labels batch
-                    _input, _lbls = self.build_batch(fSets[0],
-                                                     fSets[1], fSize)
+                    _input, _lbls = self.build_batch(_trn[0],
+                                                     _trn[1], fSize)
                     
                     # One training step
                     _ret = self.train_one_step(_input, _lbls, fSize)
 
                     # Adapt learning rate
                     if(i > 0 or j > 0 or k > 0):
-                        self.angle_driven_approach(_var, _ret[1])
+                        self.angle_driven_approach(_wVar, _ret[1])
 
                     # Weight variation computation
-                    _var = self.weight_variation(_var, _ret[1])
+                    _wVar= self.weight_variation(_wVar, _ret[1])
                         
                     # Update weights and biases for next iteration
-                    self.update(_var, _ret[2])
+                    self.update(_wVar, _ret[2])
 
                 # Global cost and perf update in a cycle
-                _cost, _perf  = self.evaluate(_test)
+                _cost, _perf  = self.evaluate(_tst)
                 _gcost[i]    += _cost
                 _gperf[i]    += _perf
 
@@ -64,12 +70,16 @@ class DECISION(AUTOENCODERS):
             print "Iteration {0} in {1}s".format(i, _gtime[i])
 
             # Global cost for one cycle
-            _gcost[i] /= self.mCycle  
+            _gcost[i] /= fCyc
             print "Cost of iteration : {0}".format(_gcost[i])
 
             # Global perf for one cycle
-            _gperf[i] /= self.mCycle
+            _gperf[i] /= fCyc
             print "Current performances : {0}".format(_gperf[i])
+
+            # Parameters
+            print "Epsilon {0} Momentum {1}\n".format(self.mEpsilon,
+                                                      self.mMomentum)
 
             # Learning rate update
             if(i > 0):

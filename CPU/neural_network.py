@@ -5,13 +5,6 @@ import matplotlib.pyplot as plt
 class NEURAL_NETWORK(object):
 
     def __init__(self, fNbLayers, fNeurons):
-        
-        # Learning rate
-        self.mEpsilon  = np.ones(fNbLayers-1) * 0.1
-
-        # Momentum
-        self.mMomentum = np.ones(fNbLayers-1) * 0.5        
-        self.mLambda   = self.mMomentum[0] / self.mEpsilon[0]
 
         # Numbers of layers
         self.mNbLayers  = fNbLayers
@@ -19,70 +12,71 @@ class NEURAL_NETWORK(object):
         # List of number of neurons per layer
         self.mNeurons   = fNeurons
 
-        # Cross validation
-        self.mIndex     = 0
-        self.mSlice     = 10000
-        self.mCycle     = 6
-
-        # Random initialization to avoid symetrical evolution
-        self.mWeights = []
-
-        # Initialization to zeros' vector
-        self.mBiases  = []
+        # Learning rate
+        self.mEpsilon   = 0.1
+            
+        # Momentum
+        self.mMomentum  = 0.5
+        self.mLambda    = 0.2
         
-        for i in xrange(self.mNbLayers - 1):
+        # Neural network inner parameters initialization
+        self.mWeights  = []
+        self.mBiases   = []
+        
+        for i in xrange(self.mNbLayers-1):
+
             _nIn  = fNeurons[i]
             _nOut = fNeurons[i+1]
             
-            _min = -4 * mt.sqrt(6. / (_nIn + _nOut + 1))
+            _min = -mt.sqrt(6. / (_nIn + _nOut + 1))
             _max = -_min
-            
+
+            # Weights random initialization 
             self.mWeights.append(np.random.uniform(_min,
                                                    _max,
                                                    (_nOut, _nIn)))
 
-            self.mBiases.append(np.zeros((_nOut,1)))
-            
+            # Biases initialization to zeros' vector
+            self.mBiases.append(np.zeros((_nOut, 1)))
+
 #####################################################################
 # SETS PREPARATION AND RESULTS VISUALIZATION
 #####################################################################
 
     # Cross validation set
-    def cross_validation(self, fSets, fLbls=None):
+    def cross_validation(self, fSets, fLbls, fIndex, fSlice, fCycle):
 
-        _slice      = self.mSlice
-        k           = self.mIndex % self.mCycle
-        self.mIndex = k + 1
+        k = fIndex % fCycle
 
-        _trainsets = fSets[0:k*_slice, :]
+        _trainsets = fSets[0:k*fSlice, :]
 
         if k == 0:
-            _trainsets = fSets[(k+1)*_slice:len(fSets), :]
+            _trainsets = fSets[(k+1)*fSlice:len(fSets), :]
             
         else:
             np.vstack((_trainsets,
-                       fSets[(k+1)*_slice:len(fSets), :]))
+                       fSets[(k+1)*fSlice:len(fSets), :]))
     
-        _testsets = fSets[k*_slice:(k+1)*_slice, :]
+        _testsets = fSets[k*fSlice:(k+1)*fSlice, :]
 
         #########################################################
         # Only for decision making
         if fLbls is not None:
-            _trainlbls = fLbls[0:k*_slice]
+            _trainlbls = fLbls[0:k*fSlice]
             
             if k == 0:
-                _trainlbls = fLbls[(k+1)*_slice:len(fLbls)]
+                _trainlbls = fLbls[(k+1)*fSlice:len(fLbls)]
 
             else:
                 np.hstack((_trainlbls,
-                           fLbls[(k+1)*_slice:len(fLbls)]))
+                           fLbls[(k+1)*fSlice:len(fLbls)]))
 
-            _testlbls = fLbls[k*_slice:(k+1)*_slice]
+            _testlbls = fLbls[k*fSlice:(k+1)*fSlice]
 
-            return (_trainsets, _trainlbls), (_testsets, _testlbls)
+            return k+1, (_trainsets, _trainlbls), (_testsets , _testlbls)
         ###########################################################
                 
-        return _trainsets, _testsets
+        return k+1, _trainsets, _testsets
 
 #####################################################################
 
@@ -211,6 +205,8 @@ class NEURAL_NETWORK(object):
     # Compute numerical gradient value in order to check results
     def numerical_gradient(self, fInput, fRef, fSize):
 
+        _epsilon  = 0.00001
+        
         _numWgrad = []
         _numBgrad = []
 
@@ -223,16 +219,16 @@ class NEURAL_NETWORK(object):
             
             for j in np.arange(len(self.mWeights[i])):
                 for k in np.arange(len(self.mWeights[i][j])):
-                    self.mWeights[i][j,k] += self.mEpsilon[i]
+                    self.mWeights[i][j,k] += _epsilon
                     _left = self.output_and_cost(fInput, fRef)
 
-                    self.mWeights[i][j,k] -= 2. * self.mEpsilon[i]
+                    self.mWeights[i][j,k] -= 2. * _epsilon
                     _right = self.output_and_cost(fInput, fRef)
 
-                    _res = (_left[1]-_right[1])/(2.*self.mEpsilon[i])
+                    _res = (_left[1] - _right[1]) / (2. * _epsilon)
                     _m[j][k] = _res / fSize
                     
-                    self.mWeights[i][j,k] += self.mEpsilon[i]
+                    self.mWeights[i][j,k] += _epsilon
 
             _numWgrad.append(_m)
 
@@ -245,16 +241,16 @@ class NEURAL_NETWORK(object):
             
             for j in np.arange(len(self.mBiases[i])):
             
-                self.mBiases[i][j] += self.mEpsilon[i]
+                self.mBiases[i][j] += _epsilon
                 _left = self.output_and_cost(fInput, fRef)
 
-                self.mBiases[i][j] -= 2. * self.mEpsilon[i]
+                self.mBiases[i][j] -= 2. * _epsilon
                 _right = self.output_and_cost(fInput, fRef)
 
-                _res  = (_left[1]-_right[1])/(2.*self.mEpsilon[i])
+                _res  = (_left[1] - _right[1]) / (2. * _epsilon)
                 _v[j] = _res / fSize
                 
-                self.mBiases[i][j] += self.mEpsilon[i]
+                self.mBiases[i][j] += _epsilon
 
             _numBgrad.append(_v)
                       
@@ -281,16 +277,14 @@ class NEURAL_NETWORK(object):
 # ADAPTIVE LEARNING RATE
 #####################################################################
         
-    def grad_dir_angle(self, fVar, fGrad):
+    def grad_dir_angle(self, fWvar, fWgrad):
 
-        return np.sum(-fGrad * fVar) / (np.linalg.norm(fGrad) * np.linalg.norm(fVar))
-
-    def angle_driven_approach(self, fVar, fGrad):
+        return np.sum(-fWgrad * fWvar) / (np.linalg.norm(fWgrad) * np.linalg.norm(fWvar))
         
-        for i in xrange(self.mNbLayers-1):
+    def angle_driven_approach(self, fWvar, fWgrad):
 
-            # Learning rate update
-            self.mEpsilon[i]  *= (1 + 0.5 * self.grad_dir_angle(fVar[i], fGrad[i]))
+        # Learning rate update
+        self.mEpsilon = self.mEpsilon * (1 + 0.5 * self.grad_dir_angle(fWvar[-1], fWgrad[-1]))
 
-            # Momentum update
-            self.mMomentum[i] = (self.mLambda * self.mEpsilon[i] * np.linalg.norm(fGrad[i]) / np.linalg.norm(fVar[i]))
+        # Momentum update
+        self.mMomentum = self.mLambda * self.mEpsilon * np.linalg.norm(fWgrad[-1]) / np.linalg.norm(fWvar[-1])

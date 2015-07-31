@@ -52,6 +52,8 @@ def main(argv):
         elif opt == '-t':
             _type = arg
 
+    _savename = _type + "_" + _savename
+
     # Creating the neural network
     if   _type == "AC":
         _nnet = ac.AUTOENCODERS(_neuronsList)

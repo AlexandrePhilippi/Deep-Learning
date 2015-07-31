@@ -17,14 +17,11 @@ class AUTOENCODERS(NEURAL_NETWORK):
     # Compute all the layer output for a given input (can be a batch)
     def propagation(self, fInput):
 
-        i = 0
-        _out = []
-        _out.append(fInput)
-        
+        _out = [fInput]
+
         for w,b in zip(self.mWeights, self.mBiases):
-            _out.append(tl.sigmoid(np.dot(w, _out[i]) + b))
-            i = i + 1
-            
+            _out.append(tl.sigmoid(np.dot(w, _out[-1]) + b))
+
         return _out
 
 #####################################################################
@@ -34,12 +31,12 @@ class AUTOENCODERS(NEURAL_NETWORK):
 
         # Last layer local error
         _err = []
-        _err.append((fOut[-1] - fIn) * fOut[-1] * (1 - fOut[-1]))
+        _err.append(-(fIn - fOut[-1]) * fOut[-1] * (1 - fOut[-1]))
 
         # Intermediate layer local error
-        for i in xrange(1, self.mNbLayers - 1):
+        for i in xrange(1, self.mNbLayers-1):
             _err.append((np.dot(self.mWeights[-i].T, _err[i-1])) * fOut[-i-1] * (1 - fOut[-i-1]))
-            
+
         _err.reverse()
 
         return _err
@@ -61,22 +58,22 @@ class AUTOENCODERS(NEURAL_NETWORK):
 
 #####################################################################
 
-    def weight_variation(self, fVar, fWGrad):
+    def weight_variation(self, fWvar, fWgrad):
 
-        return [-self.mEpsilon[i] * fWGrad[i] + self.mMomentum[i] * fVar[i] for i in xrange(self.mNbLayers-1)]
+        return [-self.mEpsilon * fWgrad[i] + self.mMomentum * fWvar[i] for i in xrange(self.mNbLayers-1)]
 
 #####################################################################
     
     # Update weights and biases parameters with gradient descent
-    def update(self, fVar, fBGrad):
+    def update(self, fWvar, fBgrad):
 
         for i in xrange(self.mNbLayers-1):
             
             # Update weights
-            self.mWeights[i] += fVar[i]
+            self.mWeights[i] += fWvar[i]
 
             # Update biases
-            self.mBiases[i]  -= self.mEpsilon[i] * fBGrad[i]
+            self.mBiases[i]  += self.mEpsilon * fBgrad[i]
 
 #####################################################################
     
@@ -110,30 +107,37 @@ class AUTOENCODERS(NEURAL_NETWORK):
 #####################################################################
     
     # Algorithm which train the neural network to reduce cost
-    def train(self, fSets, fIter, fSize, fName):
+    def train(self, fSets, fIter, fSize, fName, fCyc=6, fSlc=10000):
 
-        print "Training..."
+        print "Training...\n"
 
+        _Wvar  = [np.zeros(_w.shape) for _w in self.mWeights]
         _sets  = fSets[0]
-        _var   = [np.zeros(_w.shape) for _w in self.mWeights]
         _gcost = []
         _gtime = []
         
         _done  = fIter
 
+        # Cross validation index
+        _idx   = 0
+        
         for i in xrange(fIter):
 
             _gtime.append(tm.time())
             _gcost.append(0)
             
-            for j in xrange(self.mCycle):
+            for j in xrange(fCyc):
                 
-                _train, _test = self.cross_validation(_sets)
+                _idx, _trn, _tst = self.cross_validation(_sets,
+                                                         None,
+                                                         _idx,
+                                                         fSlc,
+                                                         fCyc)
 
-                for k in xrange(len(_sets) / fSize):
-                    
+                for k in xrange(len(_trn) / fSize):
+
                     # Inputs and labels batch
-                    _in = self.build_batch(_train, None, fSize)
+                    _in = self.build_batch(_trn, None, fSize)
                     
                     # One training step
                     _ret = self.train_one_step(_in, _in, fSize)
@@ -141,29 +145,33 @@ class AUTOENCODERS(NEURAL_NETWORK):
                     # Gradient checking
                     # print "Gradient checking ..."
                     # _grad = self.numerical_gradient(_in,_in,fSize)
-                    
+
                     # self.gradient_checking(_grad[0], _grad[1],
                     #                        _ret[1] , _ret[2])
 
                     # Adapt learning rate
                     if(i > 0 or j > 0 or k > 0):
-                        self.angle_driven_approach(_var, _ret[1])
+                        self.angle_driven_approach(_Wvar, _ret[1])
 
                     # Weight variation computation
-                    _var = self.weight_variation(_var, _ret[1])
+                    _Wvar = self.weight_variation(_Wvar, _ret[1])
                         
                     # Update weights and biases
-                    self.update(_var, _ret[2])
+                    self.update(_Wvar, _ret[2])
 
-                _gcost[i] += self.evaluate(_test)
+                _gcost[i] += self.evaluate(_tst)
 
             # Iteration information
             _gtime[i] = tm.time() - _gtime[i]
             print "Iteration {0} in {1}s".format(i, _gtime[i])    
 
             # Global cost for one cycle
-            _gcost[i] /= self.mCycle
+            _gcost[i] /= fCyc
             print "Cost of iteration : {0}".format(_gcost[i])
+
+            # Parameters
+            print "Epsilon {0} Momentum {1}\n".format(self.mEpsilon,
+                                                      self.mMomentum)
 
             # Learning rate update
             if(i > 0):

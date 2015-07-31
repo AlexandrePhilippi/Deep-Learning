@@ -1,7 +1,11 @@
+from numba import vectorize, float64, float32
+
 import numpy as np
 
-def sigmoid(fX, fCoef=1):
-    return 1. / (1 + np.exp(-fCoef * fX))
+# @vectorize([float32(float32),
+#             float64(float64)])
+def sigmoid(x):
+    return 1. / (1. + np.exp(-x))
 
 #####################################################################
 
