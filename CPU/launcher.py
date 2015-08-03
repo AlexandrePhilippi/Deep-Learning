@@ -14,7 +14,7 @@ def launcher(argv):
 
     # Some can be passed in argument
     try:
-        opts, args = getopt.getopt(argv, "hp:i:b:s:t:", ["list="])
+        opts, args = getopt.getopt(argv, "hi:b:s:t:", ["list="])
 
     except getopt.GetoptError:
         print 'launcher.py -i <nb_iters> -b <batch_size> -s <save_name> --list <neurons_list> -t <type of network>'
@@ -58,10 +58,10 @@ def launcher(argv):
 
         # Calling main program
         if _dataname is None:
-            _call = "python main.py -i {0} -b {1} -s {2} --list {3} -t {4}".format(_iter, _batchSize, _str, _nlist, _type)
+            _call = "/opt/anaconda/bin/python main.py -i {0} -b {1} -s {2} --list {3} -t {4}".format(_iter, _batchSize, _str, _nlist, _type)
             
         else:
-            _call = "python main.py -i {0} -b {1} -s {2} -d {3} --list {4} -t {5}".format(_iter, _batchSize, _str, _dataname, _nlist, _type)
+            _call = "/opt/anaconda/bin/python main.py -i {0} -b {1} -s {2} -d {3} --list {4} -t {5}".format(_iter, _batchSize, _str, _dataname, _nlist, _type)
 
         print _call            
         os.system(_call)

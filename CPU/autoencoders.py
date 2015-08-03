@@ -180,18 +180,18 @@ class AUTOENCODERS(NEURAL_NETWORK):
                     break
 
         self.plot(xrange(_done), _gcost, fName, "_cost.png")
-        self.plot(xrange(_done), _gtime, fName, "_time.png")        
-
-        return self.propagation(_sets.T)[1].T
-
+        self.plot(xrange(_done), _gtime, fName, "_time.png")
+        
+        return self.create_datasets(_sets)
+        
 #####################################################################
 
     def evaluate(self, fTests):
 
         _cost = 0
 
-        for data in fTests:
-            _in    = data.reshape(len(data), 1)
+        for i in xrange(len(fTests)):
+            _in    = fTests[[i],:].T
             _out   = self.propagation(_in)
             _cost += self.propagation_cost(_out[-1], _in)
 
@@ -204,19 +204,25 @@ class AUTOENCODERS(NEURAL_NETWORK):
 
         print "Testing the neural networks..."
 
-        _cost = 0
+        _sets = np.empty((len(fSets), self.mNeurons[1]))
         _out  = []
+        
+        _cost = 0
+        
+        for i in xrange(len(fSets)):
 
-        for data in fSets:
-            _in = data.reshape(len(data),1)
-            _out.append(self.propagation(_in)[-1])
-            _cost  += self.propagation_cost(_out[-1], _in)
+            _in    = fSets[[i],:].T
+            _tmp   = self.propagation(_in)
+            _cost += self.propagation_cost(_tmp[-1], _in)
+
+            _out.append(_tmp[-1])
+            _sets[[i],:] = _tmp[1].T
 
         _cost = _cost / len(fSets)
-        print "Cost :", _cost
+        print "Cost {0}\n".format(_cost)
 
         # Save output in order to have a testset for next layers
-        self.save_output(fName, "test", _out)
+        self.save_output(fName, "test", _sets)
         
         # Check if it's possible to print the image
         _psize = [np.sqrt(self.mNeurons[0]) for i in xrange(2)]

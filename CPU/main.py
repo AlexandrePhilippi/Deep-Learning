@@ -16,11 +16,11 @@ def main(argv):
 
     _savename    = "default"
     _loadname    = None
-    _dataname    = "MNIST"
+    _dataname    = "CIFAR"
 
     # Some can be passed in argument
     try:
-        opts, args = getopt.getopt(argv, "hp:i:b:s:l:d:t:", ["list="])
+        opts, args = getopt.getopt(argv, "hi:b:s:l:d:t:", ["list="])
 
     except getopt.GetoptError:
         print 'main.py -i <nb_iters> -b <batch_size> -s <save_name> -l <load_name> -d <datasets> --list <neurons_list> -t<type of network>'
@@ -51,8 +51,6 @@ def main(argv):
 
         elif opt == '-t':
             _type = arg
-
-    _savename = _type + "_" + _savename
 
     # Creating the neural network
     if   _type == "AC":
@@ -86,6 +84,9 @@ def main(argv):
     if _type != "DC" :
         _nnet.save_output(_savename, "train", _out)
 
+    # Memory free
+    del(_out)
+
     # Loading the MNIST datasets for testing    
     if _dataname == "MNIST":
         _test = [ld.mnist_test_img("../datasets/mnist"),
@@ -95,7 +96,7 @@ def main(argv):
         _test = ld.cifar_10_test("../datasets/cifar-10")
         
     else:
-        _test = ld.load_datasets(_dataname, "test")
+        _test = [ld.load_datasets(_dataname, "test")]
 
     # Testing the network
     if _type == "DC":

@@ -15,7 +15,7 @@ class DECISION(AUTOENCODERS):
     # Algorithm which train the neural network to reduce cost
     def train(self, fSets, fIter, fSize, fName, fCyc=6, fSlc=10000):
 
-        print "Training..."
+        print "Training...\n"
 
         _wVar  = [np.zeros(_w.shape) for _w in self.mWeights]
         _gcost = []

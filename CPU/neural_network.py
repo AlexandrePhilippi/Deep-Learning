@@ -118,7 +118,7 @@ class NEURAL_NETWORK(object):
     # Neurons vision from first hidden layer
     def neurons_visions(self):
 
-        print "Building an approximate neurons vision..."
+        print "Building an approximate neurons vision...\n"
         
         _img = []
             
@@ -172,14 +172,14 @@ class NEURAL_NETWORK(object):
         if fName is None:
             return
         
-        for i in np.arange(len(self.mWeights)):
+        for i in xrange(len(self.mWeights)):
             _str = "../states/" + fName + "_W" + str(i) + ".txt"
             try:
                 self.mWeights[i] = np.loadtxt(_str)
             except IOError:
                 print "Keep random initialization for W2..."
 
-        for i in np.arange(len(self.mBiases)):
+        for i in xrange(len(self.mBiases)):
             _str = "../states/" + fName + "_B" + str(i) + ".txt"
             try:
                 self.mBiases[i] = np.expand_dims(np.loadtxt(_str), 1)
@@ -190,13 +190,24 @@ class NEURAL_NETWORK(object):
     
     # Use to create a new datasets for next layers
     def save_output(self, fName, fType, fOutput):
-
+        
         if fName is None:
             return
         
         _str  = "../datasets/" + fName + "_" + fType + "sets.txt"
 
         np.savetxt(_str, fOutput)
+
+#####################################################################
+        
+    def create_datasets(self, fSets):
+
+        _out = np.empty((len(fSets),self.mNeurons[1]))
+        
+        for i in xrange(len(fSets)):
+            _out[[i],:] = self.propagation(fSets[[i],:].T)[1].T
+
+        return _out
 
 #####################################################################
 # VERIFICATIONS
@@ -212,7 +223,7 @@ class NEURAL_NETWORK(object):
 
         # Numerical gradient according to W
         print "\t Numerical gradient according to Weights."
-        for i in np.arange(len(self.mWeights)):
+        for i in xrange(len(self.mWeights)):
 
             print "\t \t -> Layer", i + 1
             _m = np.zeros(self.mWeights[i].shape)
@@ -264,10 +275,10 @@ class NEURAL_NETWORK(object):
         _wError = np.zeros(len(_nWgrad))
         _bError = np.zeros(len(_nBgrad))
         
-        for i in np.arange(len(_nWgrad)):
+        for i in xrange(len(_nWgrad)):
             _wError[i]  = np.linalg.norm(_nWgrad[i] - _wGrad[i]) / np.linalg.norm(_nWgrad[i] + _wGrad[i])
 
-        for i in np.arange(len(_nBgrad)):
+        for i in xrange(len(_nBgrad)):
             _bError[i]  = np.linalg.norm(_nBgrad[i] - _bGrad[i]) / np.linalg.norm(_nBgrad[i] + _bGrad[i])
 
         print _wError
