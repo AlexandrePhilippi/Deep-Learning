@@ -61,32 +61,30 @@ class AUTOENCODERS(NEURAL_NETWORK):
 
     # Compute the gradient according to W and b in order to
     # realize the mini-batch gradient descent    
-    def gradient(self, fSize, fErr, fOut):
+    def gradient(self, fBatch, fErr, fOut):
 
         _wGrad = []
         _bGrad = []
 
         for err, out in zip(fErr, fOut):
-            _wGrad.append(np.dot(err, out.T) / fSize)
+            _wGrad.append(np.dot(err, out.T) / fBatch)
             _bGrad.append(err.mean(1, keepdims=True))
             
         return _wGrad, _bGrad
     
 #####################################################################
-
-    def weight_variation(self, fWvar, fWgrad):
-
-        return [-self.mEpsilon * fWgrad[i] + self.mMomentum * fWvar[i] for i in xrange(self.mNbLayers-1)]
-
-#####################################################################
     
     # Update weights and biases parameters with gradient descent
-    def update(self, fWvar, fBgrad):
+    def update(self, fWgrad, fBgrad):
 
         for i in xrange(self.mNbLayers-1):
+
+            # Weight variation
+            self.mWvar[i]    *= self.mMomentum
+            self.mWvar[i]    -= self.mEpsilon * fWgrad[i]
             
             # Update weights
-            self.mWeights[i] += fWvar[i]
+            self.mWeights[i] += self.mWvar[i]
 
             # Update biases
             self.mBiases[i]  += self.mEpsilon * fBgrad[i]
@@ -94,7 +92,7 @@ class AUTOENCODERS(NEURAL_NETWORK):
 #####################################################################
     
     # One step of the training algorithm
-    def train_one_step(self, fSize, fIn, fRef):
+    def train_one_step(self, fBatch, fIn, fRef):
 
         # Activation propagation
         _out  = self.propagation(fIn)
@@ -103,19 +101,17 @@ class AUTOENCODERS(NEURAL_NETWORK):
         _err = self.compute_layer_error(_out, fRef)
         
         # Gradient for stochastic gradient descent    
-        _wGrad, _bGrad = self.gradient(fSize, _err, _out)
+        _wGrad, _bGrad = self.gradient(fBatch, _err, _out)
 
         return (_out, _wGrad, _bGrad)
     
 #####################################################################
     
     # Algorithm which train the neural network to reduce cost
-    def train(self, fSets, fIter, fSize, fName):
+    def train(self, fImgs, fLbls, fIter, fBatch, fName):
 
         print "Training...\n"
 
-        _Wvar  = [np.zeros(_w.shape) for _w in self.mWeights]
-        _sets  = fSets[0]
         _gcost = []
         _gtime = []
         
@@ -128,32 +124,29 @@ class AUTOENCODERS(NEURAL_NETWORK):
 
             for j in xrange(self.mCycle):
 
-                _trn, _tst = self.cross_validation(j, _sets)
+                _trn, _tst = self.cross_validation(j, fImgs)
 
-                for k in xrange(len(_trn) / fSize):
+                for k in xrange(len(_trn) / fBatch):
                     
                     # Inputs and labels batch
-                    _in = self.build_batch(fSize, k, _trn)
+                    _in = self.build_batch(fBatch, k, _trn)
                     
                     # One training step
-                    _ret = self.train_one_step(fSize, _in, _in)
+                    _ret = self.train_one_step(fBatch, _in, _in)
                     
                     # Gradient checking
                     # print "Gradient checking ..."
-                    # _grad = self.numerical_gradient(_in,_in,fSize)
+                    # _grad = self.numerical_gradient(_in,_in,fBatch)
 
                     # self.gradient_checking(_grad[0], _grad[1],
                     #                        _ret[1] , _ret[2])
                     
                     # Adapt learning rate
-                    # if(i > 0 or j > 0 or k > 0):
-                    #     self.angle_driven_approach(_Wvar, _ret[1])
+                    if(i > 0 or j > 0 or k > 0):
+                        self.angle_driven_approach(_ret[1])
 
-                    # Weight variation computation
-                    _Wvar = self.weight_variation(_Wvar, _ret[1])
-                        
                     # Update weights and biases
-                    self.update(_Wvar, _ret[2])
+                    self.update(_ret[1], _ret[2])
 
                 _gcost[i] += self.evaluate(_tst)
 
@@ -178,7 +171,7 @@ class AUTOENCODERS(NEURAL_NETWORK):
         self.plot(xrange(_done), _gcost, fName, "_cost.png")
         self.plot(xrange(_done), _gtime, fName, "_time.png")
         
-        return self.create_datasets(_sets)
+        return self.save_output(fName, "train", fImgs)
         
 #####################################################################
 
@@ -189,36 +182,32 @@ class AUTOENCODERS(NEURAL_NETWORK):
         for i in xrange(len(fTests)):
             _in    = fTests[[i],:].T
             _out   = self.propagation(_in)
-            _cost += self.propagation_cost(_out[-1], _in)
+            _cost += self.error(_out[-1], _in)
 
         return _cost / len(fTests)
         
 #####################################################################
 
     # Test the neural network over a test set
-    def test(self, fSets, fName):
+    def test(self, fImgs, fLbls, fName):
 
         print "Testing the neural networks..."
 
-        _sets = np.empty((len(fSets), self.mNeurons[1]))
-        _out  = []
+        _res     = []
+        _cost    = 0
         
-        _cost = 0
-        
-        for i in xrange(len(fSets)):
+        for i in xrange(len(fImgs)):
 
-            _in    = fSets[[i],:].T
-            _tmp   = self.propagation(_in)
-            _cost += self.propagation_cost(_tmp[-1], _in)
+            _in    = fImgs[[i],:].T
+            _out   = self.propagation(_in)
+            _cost += self.error(_out[-1], _in)
 
-            _out.append(_tmp[-1])
-            _sets[[i],:] = _tmp[1].T
+            _res.append(_tmp[-1])
 
-        _cost = _cost / len(fSets)
-        print "Cost {0}\n".format(_cost)
+        print "Cost {0}\n".format(_cost / len(fImgs))
 
         # Save output in order to have a testset for next layers
-        self.save_output(fName, "test", _sets)
+        self.save_output(fName, "test", fImgs)
         
         # Check if it's possible to print the image
         _psize = [int(mt.sqrt(self.mNeurons[0])) for i in xrange(2)]
@@ -227,128 +216,9 @@ class AUTOENCODERS(NEURAL_NETWORK):
             return
         
         # Displaying the results
-        dy.display(fName, [fSets, _out], len(fSets), _psize, "out")
+        dy.display(fName, [fImgs, _res], len(fImgs), _psize, "out")
 
         # Approximated vision of first hidden layer neurons
         _res = self.neurons_visions()
         dy.display(fName, [_res], self.mNeurons[1], _psize,
                    "neurons", 5, 5)
-
-#####################################################################
-# BACKUP AND DEEP NETWORK PRE-TRAINING
-#####################################################################
-        
-    def create_datasets(self, fSets):
-
-        _out = np.empty((len(fSets),self.mNeurons[1]))
-        
-        for i in xrange(len(fSets)):
-            _out[[i],:] = self.propagation(fSets[[i],:].T)[1].T
-
-        return _out
-
-#####################################################################
-# ADAPTIVE LEARNING RATE
-#####################################################################
-        
-    def grad_dir_angle(self, fWvar, fWgrad):
-
-        return np.sum(-fWgrad * fWvar) / (np.linalg.norm(fWgrad) * np.linalg.norm(fWvar))
-
-#####################################################################
-    
-    def angle_driven_approach(self, fWvar, fWgrad):
-
-        # Learning rate update
-        self.mEpsilon = self.mEpsilon * (1 + 0.5 * self.grad_dir_angle(fWvar[-1], fWgrad[-1]))
-
-        # Momentum update
-        self.mMomentum = self.mLambda * self.mEpsilon * np.linalg.norm(fWgrad[-1]) / np.linalg.norm(fWvar[-1])
-
-#####################################################################
-# VERIFICATIONS
-#####################################################################
-    
-    # Compute numerical gradient value in order to check results
-    def numerical_gradient(self, fInput, fRef, fSize):
-
-        _epsilon  = 0.00001
-        
-        _numWgrad = []
-        _numBgrad = []
-
-        # Numerical gradient according to W
-        print "\t Numerical gradient according to Weights."
-        for i in xrange(len(self.mWeights)):
-
-            print "\t \t -> Layer", i + 1
-            _m = np.zeros(self.mWeights[i].shape)
-            
-            for j in np.arange(len(self.mWeights[i])):
-                for k in np.arange(len(self.mWeights[i][j])):
-                    self.mWeights[i][j,k] += _epsilon
-                    _left = self.output_and_cost(fInput, fRef)
-
-                    self.mWeights[i][j,k] -= 2. * _epsilon
-                    _right = self.output_and_cost(fInput, fRef)
-
-                    _res = (_left[1] - _right[1]) / (2. * _epsilon)
-                    _m[j][k] = _res / fSize
-                    
-                    self.mWeights[i][j,k] += _epsilon
-
-            _numWgrad.append(_m)
-
-        # Numerical gradient according to b
-        print "\t Numerical gradient according to Biases."    
-        for i in np.arange(len(self.mBiases)):
-
-            print "\t \t -> Layer", i + 1
-            _v = np.zeros(self.mBiases[i].shape)
-            
-            for j in np.arange(len(self.mBiases[i])):
-            
-                self.mBiases[i][j] += _epsilon
-                _left = self.output_and_cost(fInput, fRef)
-
-                self.mBiases[i][j] -= 2. * _epsilon
-                _right = self.output_and_cost(fInput, fRef)
-
-                _res  = (_left[1] - _right[1]) / (2. * _epsilon)
-                _v[j] = _res / fSize
-                
-                self.mBiases[i][j] += _epsilon
-
-            _numBgrad.append(_v)
-                      
-        return _numWgrad, _numBgrad
-
-#####################################################################
-    
-    # Check gradient results
-    def gradient_checking(self, _nWgrad, _nBgrad, _wGrad, _bGrad):
-
-        _wError = np.zeros(len(_nWgrad))
-        _bError = np.zeros(len(_nBgrad))
-        
-        for i in xrange(len(_nWgrad)):
-            _wError[i]  = np.linalg.norm(_nWgrad[i] - _wGrad[i]) / np.linalg.norm(_nWgrad[i] + _wGrad[i])
-
-        for i in xrange(len(_nBgrad)):
-            _bError[i]  = np.linalg.norm(_nBgrad[i] - _bGrad[i]) / np.linalg.norm(_nBgrad[i] + _bGrad[i])
-
-        print _wError
-        print _bError
-
-#####################################################################
-    
-    # One step of the train algorithm to get output and cost
-    def output_and_cost(self, fIn, fRef):
-
-        # All the output generated according to the batch
-        _out  = self.propagation(fIn)
-        
-        # Cost linked to the batch passed in argument
-        _cost = self.propagation_cost(_out[-1], fRef)
-
-        return _out, _cost

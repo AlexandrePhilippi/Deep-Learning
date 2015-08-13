@@ -27,6 +27,7 @@ class NEURAL_NETWORK(object):
         # Neural network inner parameters initialization
         self.mWeights  = []
         self.mBiases   = []
+        self.mWvar     = []
 
         # Cross-validation, batch building
         self.mCycle    = 6
@@ -51,6 +52,9 @@ class NEURAL_NETWORK(object):
 
             # Biases initialization to zeros' vector
             self.mBiases.append(np.zeros((_nOut, 1)))
+
+            # Weights variations
+            self.mWvar.append(np.zeros(self.mWeights[i].shape))
 
 #####################################################################
 # SETS PREPARATION AND RESULTS VISUALIZATION
@@ -153,10 +157,28 @@ class NEURAL_NETWORK(object):
 #####################################################################
     
     # Compute the average cost obtained with a set of train inputs
-    def propagation_cost(self, fOut, fIn):
+    def error(self, fOut, fIn):
 
         return np.sum((fOut - fIn)**2) / 2.
 
+#####################################################################
+# ADAPTIVE LEARNING RATE
+#####################################################################
+        
+    def grad_dir_angle(self, fWvar, fWgrad):
+
+        return np.sum(-fWgrad * fWvar) / (np.linalg.norm(fWgrad) * np.linalg.norm(fWvar))
+
+#####################################################################
+    
+    def angle_driven_approach(self, fWgrad):
+
+        # Learning rate update
+        self.mEpsilon = self.mEpsilon * (1 + 0.5 * self.grad_dir_angle(self.mWvar[-1], fWgrad[-1]))
+
+        # Momentum update
+        self.mMomentum = self.mLambda * self.mEpsilon * np.linalg.norm(fWgrad[-1]) / np.linalg.norm(self.mWvar[-1])
+    
 #####################################################################
 # BACKUP
 #####################################################################
@@ -200,11 +222,99 @@ class NEURAL_NETWORK(object):
 #####################################################################
     
     # Use to create a new datasets for next layers
-    def save_output(self, fName, fType, fOutput):
-        
-        if fName is None:
-            return
-        
-        _str  = "../datasets/" + fName + "_" + fType + "sets.txt"
+    def save_output(self, fName, fType, fImgs):
 
-        np.savetxt(_str, fOutput)
+        _out = np.empty((len(fImgs),self.mNeurons[1]))
+        
+        for i in xrange(len(fImgs)):
+            _out[[i],:] = self.propagation(fImgs[[i],:].T)[1].T
+
+        np.savetxt("../datasets/"+fName+"_"+fType+"sets.txt", _out)
+
+#####################################################################
+# VERIFICATIONS
+#####################################################################
+    
+    # Compute numerical gradient value in order to check results
+    def numerical_gradient(self, fInput, fRef, fBatch):
+
+        _epsilon  = 0.00001
+        
+        _numWgrad = []
+        _numBgrad = []
+
+        # Numerical gradient according to W
+        print "\t Numerical gradient according to Weights."
+        for i in xrange(len(self.mWeights)):
+
+            print "\t \t -> Layer", i + 1
+            _m = np.zeros(self.mWeights[i].shape)
+            
+            for j in np.arange(len(self.mWeights[i])):
+                for k in np.arange(len(self.mWeights[i][j])):
+                    self.mWeights[i][j,k] += _epsilon
+                    _left = self.output_and_cost(fInput, fRef)
+
+                    self.mWeights[i][j,k] -= 2. * _epsilon
+                    _right = self.output_and_cost(fInput, fRef)
+
+                    _res = (_left[1] - _right[1]) / (2. * _epsilon)
+                    _m[j][k] = _res / fBatch
+                    
+                    self.mWeights[i][j,k] += _epsilon
+
+            _numWgrad.append(_m)
+
+        # Numerical gradient according to b
+        print "\t Numerical gradient according to Biases."    
+        for i in np.arange(len(self.mBiases)):
+
+            print "\t \t -> Layer", i + 1
+            _v = np.zeros(self.mBiases[i].shape)
+            
+            for j in np.arange(len(self.mBiases[i])):
+            
+                self.mBiases[i][j] += _epsilon
+                _left = self.output_and_cost(fInput, fRef)
+
+                self.mBiases[i][j] -= 2. * _epsilon
+                _right = self.output_and_cost(fInput, fRef)
+
+                _res  = (_left[1] - _right[1]) / (2. * _epsilon)
+                _v[j] = _res / fBatch
+                
+                self.mBiases[i][j] += _epsilon
+
+            _numBgrad.append(_v)
+                      
+        return _numWgrad, _numBgrad
+
+#####################################################################
+    
+    # Check gradient results
+    def gradient_checking(self, _nWgrad, _nBgrad, _wGrad, _bGrad):
+
+        _wError = np.zeros(len(_nWgrad))
+        _bError = np.zeros(len(_nBgrad))
+        
+        for i in xrange(len(_nWgrad)):
+            _wError[i]  = np.linalg.norm(_nWgrad[i] - _wGrad[i]) / np.linalg.norm(_nWgrad[i] + _wGrad[i])
+
+        for i in xrange(len(_nBgrad)):
+            _bError[i]  = np.linalg.norm(_nBgrad[i] - _bGrad[i]) / np.linalg.norm(_nBgrad[i] + _bGrad[i])
+
+        print _wError
+        print _bError
+
+#####################################################################
+    
+    # One step of the train algorithm to get output and cost
+    def output_and_cost(self, fIn, fRef):
+
+        # All the output generated according to the batch
+        _out  = self.propagation(fIn)
+        
+        # Cost linked to the batch passed in argument
+        _cost = self.error(_out[-1], fRef)
+
+        return _out, _cost

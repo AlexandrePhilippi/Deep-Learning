@@ -12,19 +12,17 @@ from array import array
 # MNIST database
 #####################################################################
 def mnist_test_lbl(fPath):
-    _testLblFname = 't10k-labels-idx1-ubyte'
-    _pathTestLbl = os.path.join(fPath, _testLblFname)
-    _teLbl = load_mnist_lbl(_pathTestLbl)
-    return _teLbl
+
+    _path = os.path.join(fPath, 't10k-labels-idx1-ubyte')
+    return load_mnist_lbl(_path)
 
 def mnist_train_lbl(fPath):
-    _trainLblFname = 'train-labels-idx1-ubyte'
-    _pathTrainLbl = os.path.join(fPath, _trainLblFname)
-    _trLbl = load_mnist_lbl(_pathTrainLbl)
-    return _trLbl
 
-def load_mnist_lbl(fPathLbl):
-    with open(fPathLbl, 'rb') as file:
+    _path = os.path.join(fPath, 'train-labels-idx1-ubyte')
+    return load_mnist_lbl(_path)
+
+def load_mnist_lbl(fPath):
+    with open(fPath, 'rb') as file:
         _magic, _size = struct.unpack(">II", file.read(8))
         if _magic != 2049:
             raise ValueError('Magic number mismatch, expected 2049,'
@@ -33,10 +31,9 @@ def load_mnist_lbl(fPathLbl):
         return np.asarray(array("B", file.read()))
 
 def mnist_test_img(fPath):
-    _testImgFname = 't10k-images-idx3-ubyte'
-    _pathTestImg = os.path.join(fPath, _testImgFname)
-    _teImg = load_mnist_img(_pathTestImg)
-    return _teImg
+
+    _path = os.path.join(fPath, 't10k-images-idx3-ubyte')
+    return load_mnist_img(_path)
     
 def mnist_train_img(fPath):
     _trainImgFname = 'train-images-idx3-ubyte'
@@ -46,7 +43,8 @@ def mnist_train_img(fPath):
 
 def load_mnist_img(fPath):
     with open(fPath, 'rb') as file:
-        _magic, _size, _rows, _cols = struct.unpack(">IIII", file.read(16))
+        _magic, _size, _rows, _cols = struct.unpack(">IIII",
+                                                    file.read(16))
         if _magic != 2051:
             raise ValueError('Magic number mismatch, expected 2051,'
                                  'got %d' % _magic)
@@ -54,6 +52,12 @@ def load_mnist_img(fPath):
         _imgData = array("B", file.read())
 
         return np.asarray(_imgData).reshape(_size, _cols*_rows)/255.
+
+def mnist_train(fPath):
+    return [mnist_train_img(fPath), mnist_train_lbl(fPath)]
+
+def mnist_test(fPath):
+    return [mnist_test_img(fPath), mnist_test_lbl(fPath)]
 
 #####################################################################
 # Cifar-10 file
@@ -75,7 +79,7 @@ def normalize_cifar_set(fDict):
                 
     return _imgs / 255, _lbls
             
-def cifar_10_train(fPath):
+def cifar10_train(fPath):
 
     _dict = []
     
@@ -86,7 +90,7 @@ def cifar_10_train(fPath):
 
     return normalize_cifar_set(_dict)
         
-def cifar_10_test(fPath):
+def cifar10_test(fPath):
     
     _file = open(fPath + "/test_batch", "rb")
     _dict = cp.load(_file)
@@ -128,10 +132,20 @@ def subpicture(fSrc, fNbPatches, fSize, fPatchSize):
     return np.array(_sets)
 
 #####################################################################
-# Temporary datasets
+# Easy loader
 #####################################################################
 
-def load_datasets(fDataname, fType):
+def load_datasets(fName, fType):
 
-    return np.loadtxt("../datasets/"+fDataname+"_"+fType+"sets.txt")
+    _path = "../datasets/{0}".format(fName)        
     
+    if fName == "mnist":
+        if fType == "train": return mnist_train(_path)
+        else:                return mnist_test (_path)
+
+    elif fName == "cifar-10":
+        if fType == "train": return cifar10_train(_path)
+        else:                return cifar10_test (_path)
+            
+    else: return [np.loadtxt(_path + "_" + fType + "sets.txt")]
+        

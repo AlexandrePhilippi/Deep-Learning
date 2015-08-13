@@ -11,100 +11,69 @@ def main(argv):
     np.set_printoptions(precision=3, threshold='nan')
     
     # Parameters initialization
-    _neuronsList = [784, 25, 784]
-    _iter        = 2000
-    _batchSize   = 50
-    _type        = "AC"
+    _neurons = [784, 25, 784]
+    _iter    = 2000
+    _batch   = 50
 
-    _savename    = "default"
-    _loadname    = None
-    _dataname    = "MNIST"
+    _data    = "mnist"
+    _save    = "default"
+    _load    = None
+
 
     # Some can be passed in argument
     try:
-        opts, args = getopt.getopt(argv, "hi:b:s:l:d:t:", ["list="])
+        opts, args = getopt.getopt(argv, "hi:b:s:l:d:", ["list="])
 
     except getopt.GetoptError:
-        print 'main.py -i <nb_iters> -b <batch_size> -s <save_name> -l <load_name> -d <datasets> --list <neurons_list> -t<type of network>'
-        sys.exit(2)
+        print 'main.py -i <iterations> -b <batch> -s <save> -l <load> -d <data> --list <neurons>'
+        sys.exit()
 
     for opt, arg in opts:
         if opt == '-h':
-            print 'main.py -i <nb_iters> -b <batch_size> -s <save_name> -l <load_name> -d <datasets> --list <neurons_list> -t <type of network>'
+            print 'main.py -i <iterations> -b <batch> -s <save> -l <load> -d <data> --list <neurons>'
             sys.exit()
 
         elif opt == '-i':
             _iter = int(arg)
             
         elif opt == '-b':
-            _batchSize = int(arg)
+            _batch = int(arg)
 
         elif opt == '-s':
-            _savename = arg
+            _save = arg
 
         elif opt == '-l':
-            _loadname = arg
+            _load = arg
 
         elif opt == '-d':
-            _dataname = arg
+            _data = arg
             
         elif opt == '--list':
-            _neuronsList = map(int, arg.split(','))
-
-        elif opt == '-t':
-            _type = arg
+            _neurons = map(int, arg.split(','))
 
     # Creating the neural network
-    if   _type == "AC":
-        _nnet = ac.AUTOENCODERS(_neuronsList)
-    elif _type == "RBM":
-        _nnet = rbm.RBM(_neuronsList)
-    elif _type == "DC":
-        _nnet = dc.DECISION(_neuronsList)
-
-    # Loading pretrained state if _loadname is given
-    _nnet.load_state(_loadname)
-
-    # Loading the MNIST datasets for training
-    if _dataname == "MNIST":
-        _train = [ld.mnist_train_img("../datasets/mnist"),
-                  ld.mnist_train_lbl("../datasets/mnist")]
-
-    elif _dataname == "CIFAR":
-        _train = ld.cifar_10_train("../datasets/cifar-10")
-
+    if _neurons[0] == _neurons[-1]:
+        _nnet = ac.AUTOENCODERS(_neurons)
     else:
-        _train = [ld.load_datasets(_dataname, "train")]
+        _nnet = dc.DECISION(_neurons)
+
+    # Loading pretrained state if _load is given
+    _nnet.load_state(_load)
+
+    # Loading the datasets for training
+    _train = ld.load_datasets(_data, "train")
 
     # Training the network
-    _out = _nnet.train(_train, _iter, _batchSize, _savename)
+    _nnet.train(_train[0], _train[1], _iter, _batch, _save)
 
-    # Saving states if _savename is given
-    _nnet.save_state(_savename)
+    # Saving states if _save is given
+    _nnet.save_state(_save)
 
-    # Save output if _savename is given
-    if _type != "DC" :
-        _nnet.save_output(_savename, "train", _out)
-
-    # Memory free
-    del(_out)
-
-    # Loading the MNIST datasets for testing    
-    if _dataname == "MNIST":
-        _test = [ld.mnist_test_img("../datasets/mnist"),
-                 ld.mnist_test_lbl("../datasets/mnist")]
-
-    elif _dataname == "CIFAR":
-        _test = ld.cifar_10_test("../datasets/cifar-10")
-        
-    else:
-        _test = [ld.load_datasets(_dataname, "test")]
+    # Loading the datasets for testing    
+    _test = ld.load_datasets(_data, "test")
 
     # Testing the network
-    if _type == "DC":
-        _nnet.test(_test, _savename)
-    else:
-        _nnet.test(_test[0], _savename)
+    _nnet.test(_test[0], _test[1], _save)
 
 #####################################################################
         
