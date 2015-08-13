@@ -7,7 +7,7 @@ import matplotlib.cm     as cm
 def display(fName, fSrc, fNbPatches, fDim, fType=None, fNbImgR=10, fNbImgC=10):
 
     _firstRow  = 1
-    
+
     for i in np.arange(fNbImgR):
 
         _firstCell = 1

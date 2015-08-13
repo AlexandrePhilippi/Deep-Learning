@@ -1,13 +1,15 @@
 import autoencoders as ac
-import rbm          as rbm
 import decision     as dc
 import loader       as ld
 import display      as dy
+import numpy        as np
 
 import sys, getopt
     
 def main(argv):
 
+    np.set_printoptions(precision=3, threshold='nan')
+    
     # Parameters initialization
     _neuronsList = [784, 25, 784]
     _iter        = 2000
@@ -16,7 +18,7 @@ def main(argv):
 
     _savename    = "default"
     _loadname    = None
-    _dataname    = "CIFAR"
+    _dataname    = "MNIST"
 
     # Some can be passed in argument
     try:
@@ -100,10 +102,9 @@ def main(argv):
 
     # Testing the network
     if _type == "DC":
-        _nnet.test(_test)
+        _nnet.test(_test, _savename)
     else:
         _nnet.test(_test[0], _savename)
-
 
 #####################################################################
         

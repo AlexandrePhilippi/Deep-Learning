@@ -1,5 +1,6 @@
 import numpy             as np
 import math              as mt
+import time              as tm
 import matplotlib.pyplot as plt
 
 class NEURAL_NETWORK(object):
@@ -13,8 +14,12 @@ class NEURAL_NETWORK(object):
         self.mNeurons   = fNeurons
 
         # Learning rate
-        self.mEpsilon   = 0.1
-            
+        self.mEpsilon   = 0.01
+
+        # Sparsity
+        self.mBeta     = 3.0
+        self.mSparsity = 0.05
+        
         # Momentum
         self.mMomentum  = 0.5
         self.mLambda    = 0.2
@@ -22,6 +27,11 @@ class NEURAL_NETWORK(object):
         # Neural network inner parameters initialization
         self.mWeights  = []
         self.mBiases   = []
+
+        # Cross-validation, batch building
+        self.mCycle    = 6
+        self.mSlice    = 10000
+        self.mPool     = np.arange(50000)
         
         for i in xrange(self.mNbLayers-1):
 
@@ -31,10 +41,13 @@ class NEURAL_NETWORK(object):
             _min = -mt.sqrt(6. / (_nIn + _nOut + 1))
             _max = -_min
 
-            # Weights random initialization 
-            self.mWeights.append(np.random.uniform(_min,
-                                                   _max,
-                                                   (_nOut, _nIn)))
+            # Weights random initialization
+            _rand = np.random.RandomState(int(tm.time()))
+            _size = (_nOut, _nIn)
+
+            self.mWeights.append(np.asarray(_rand.uniform(_min,
+                                                          _max,
+                                                          _size)))
 
             # Biases initialization to zeros' vector
             self.mBiases.append(np.zeros((_nOut, 1)))
@@ -44,48 +57,46 @@ class NEURAL_NETWORK(object):
 #####################################################################
 
     # Cross validation set
-    def cross_validation(self, fSets, fLbls, fIndex, fSlice, fCycle):
+    def cross_validation(self, fIdx, fSets, fLbls=None):
 
-        k = fIndex % fCycle
+        _slice = self.mSlice
 
-        _trainsets = fSets[0:k*fSlice, :]
+        _trainsets = fSets[0:fIdx * _slice, :]
 
-        if k == 0:
-            _trainsets = fSets[(k+1)*fSlice:len(fSets), :]
-            
-        else:
-            np.vstack((_trainsets,
-                       fSets[(k+1)*fSlice:len(fSets), :]))
-    
-        _testsets = fSets[k*fSlice:(k+1)*fSlice, :]
+        _trainsets = np.vstack((_trainsets,
+                                fSets[(fIdx+1)*_slice:len(fSets),:]))
+
+        _testsets = fSets[fIdx * _slice:(fIdx + 1) * _slice, :]
 
         #########################################################
         # Only for decision making
         if fLbls is not None:
-            _trainlbls = fLbls[0:k*fSlice]
+            _trainlbls = fLbls[0:fIdx * _slice]
             
-            if k == 0:
-                _trainlbls = fLbls[(k+1)*fSlice:len(fLbls)]
+            if fIdx == 0:
+                _trainlbls = fLbls[(fIdx + 1) * _slice:len(fLbls)]
 
             else:
                 np.hstack((_trainlbls,
-                           fLbls[(k+1)*fSlice:len(fLbls)]))
+                           fLbls[(fIdx + 1) * _slice:len(fLbls)]))
 
-            _testlbls = fLbls[k*fSlice:(k+1)*fSlice]
+            _testlbls = fLbls[fIdx * _slice:(fIdx + 1) * _slice]
 
-            return k+1, (_trainsets, _trainlbls), (_testsets , _testlbls)
+            return (_trainsets, _trainlbls), (_testsets , _testlbls)
         ###########################################################
                 
-        return k+1, _trainsets, _testsets
+        return _trainsets, _testsets
 
 #####################################################################
 
-    def build_batch(self, fSets, fLbls, fSize, fIndex=None):
+    def build_batch(self, fSize, fIdx, fSets, fLbls=None):
 
-        if fIndex is None:
-            fIndex = np.random.randint(len(fSets), size=fSize)
+        if fIdx == 0:
+            np.random.shuffle(self.mPool)
+        
+        _index = self.mPool[fIdx * fSize:(fIdx + 1) * fSize]
 
-        _sets = fSets[fIndex,:].T
+        _sets = fSets[_index,:].T
 
         ###############################################
         # Only for decision making
@@ -93,7 +104,7 @@ class NEURAL_NETWORK(object):
             _lbls = np.zeros((self.mNeurons[-1], fSize))
 
             for l in xrange(fSize):
-                _lbls[fLbls[fIndex[l]]][l] = 1
+                _lbls[fLbls[_index[l]]][l] = 1
 
             return _sets, _lbls
         ###############################################
@@ -142,9 +153,9 @@ class NEURAL_NETWORK(object):
 #####################################################################
     
     # Compute the average cost obtained with a set of train inputs
-    def propagation_cost(self, fOutput, fInput):
+    def propagation_cost(self, fOut, fIn):
 
-        return np.sum((fOutput - fInput)**2) / 2.
+        return np.sum((fOut - fIn)**2) / 2.
 
 #####################################################################
 # BACKUP
@@ -177,14 +188,14 @@ class NEURAL_NETWORK(object):
             try:
                 self.mWeights[i] = np.loadtxt(_str)
             except IOError:
-                print "Keep random initialization for W2..."
+                print "Random initialization for W{0}".format(i)
 
         for i in xrange(len(self.mBiases)):
             _str = "../states/" + fName + "_B" + str(i) + ".txt"
             try:
                 self.mBiases[i] = np.expand_dims(np.loadtxt(_str), 1)
             except IOError:
-                print "Keep zero initialization for B2..."
+                print "Zero initialization for B{0}".format(i)
 
 #####################################################################
     
@@ -197,105 +208,3 @@ class NEURAL_NETWORK(object):
         _str  = "../datasets/" + fName + "_" + fType + "sets.txt"
 
         np.savetxt(_str, fOutput)
-
-#####################################################################
-        
-    def create_datasets(self, fSets):
-
-        _out = np.empty((len(fSets),self.mNeurons[1]))
-        
-        for i in xrange(len(fSets)):
-            _out[[i],:] = self.propagation(fSets[[i],:].T)[1].T
-
-        return _out
-
-#####################################################################
-# VERIFICATIONS
-#####################################################################
-    
-    # Compute numerical gradient value in order to check results
-    def numerical_gradient(self, fInput, fRef, fSize):
-
-        _epsilon  = 0.00001
-        
-        _numWgrad = []
-        _numBgrad = []
-
-        # Numerical gradient according to W
-        print "\t Numerical gradient according to Weights."
-        for i in xrange(len(self.mWeights)):
-
-            print "\t \t -> Layer", i + 1
-            _m = np.zeros(self.mWeights[i].shape)
-            
-            for j in np.arange(len(self.mWeights[i])):
-                for k in np.arange(len(self.mWeights[i][j])):
-                    self.mWeights[i][j,k] += _epsilon
-                    _left = self.output_and_cost(fInput, fRef)
-
-                    self.mWeights[i][j,k] -= 2. * _epsilon
-                    _right = self.output_and_cost(fInput, fRef)
-
-                    _res = (_left[1] - _right[1]) / (2. * _epsilon)
-                    _m[j][k] = _res / fSize
-                    
-                    self.mWeights[i][j,k] += _epsilon
-
-            _numWgrad.append(_m)
-
-        # Numerical gradient according to b
-        print "\t Numerical gradient according to Biases."    
-        for i in np.arange(len(self.mBiases)):
-
-            print "\t \t -> Layer", i + 1
-            _v = np.zeros(self.mBiases[i].shape)
-            
-            for j in np.arange(len(self.mBiases[i])):
-            
-                self.mBiases[i][j] += _epsilon
-                _left = self.output_and_cost(fInput, fRef)
-
-                self.mBiases[i][j] -= 2. * _epsilon
-                _right = self.output_and_cost(fInput, fRef)
-
-                _res  = (_left[1] - _right[1]) / (2. * _epsilon)
-                _v[j] = _res / fSize
-                
-                self.mBiases[i][j] += _epsilon
-
-            _numBgrad.append(_v)
-                      
-        return _numWgrad, _numBgrad
-
-#####################################################################
-    
-    # Check gradient results
-    def gradient_checking(self, _nWgrad, _nBgrad, _wGrad, _bGrad):
-
-        _wError = np.zeros(len(_nWgrad))
-        _bError = np.zeros(len(_nBgrad))
-        
-        for i in xrange(len(_nWgrad)):
-            _wError[i]  = np.linalg.norm(_nWgrad[i] - _wGrad[i]) / np.linalg.norm(_nWgrad[i] + _wGrad[i])
-
-        for i in xrange(len(_nBgrad)):
-            _bError[i]  = np.linalg.norm(_nBgrad[i] - _bGrad[i]) / np.linalg.norm(_nBgrad[i] + _bGrad[i])
-
-        print _wError
-        print _bError
-
-#####################################################################
-# ADAPTIVE LEARNING RATE
-#####################################################################
-        
-    def grad_dir_angle(self, fWvar, fWgrad):
-
-        return np.sum(-fWgrad * fWvar) / (np.linalg.norm(fWgrad) * np.linalg.norm(fWvar))
-        
-    def angle_driven_approach(self, fWvar, fWgrad):
-
-        # Learning rate update
-        self.mEpsilon = self.mEpsilon * (1 + 0.5 * self.grad_dir_angle(fWvar[-1], fWgrad[-1]))
-
-        # Momentum update
-        self.mMomentum = self.mLambda * self.mEpsilon * np.linalg.norm(fWgrad[-1]) / np.linalg.norm(fWvar[-1])

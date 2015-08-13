@@ -1,7 +1,8 @@
 from autoencoders import AUTOENCODERS
 
-import numpy  as np
-import time   as tm
+import numpy   as np
+import time    as tm
+import display as dy
 
 class DECISION(AUTOENCODERS):
 
@@ -116,7 +117,7 @@ class DECISION(AUTOENCODERS):
 
 #####################################################################
 
-    def test(self, fSets):
+    def test(self, fSets, fName):
 
         print "Testing the network ..."
 
