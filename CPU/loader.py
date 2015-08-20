@@ -149,3 +149,26 @@ def load_datasets(fName, fType):
             
     else: return [np.loadtxt(_path + "_" + fType + "sets.txt")]
         
+#####################################################################
+# Input normalization
+#####################################################################
+
+# Not finished
+def normalization(fSets):
+
+    # Mean subtraction
+    _shifted = fSets - np.mean(fSets, 0)
+
+    # Covariance
+    _cov = np.dot(_shifted.T, _shifted) / _shifted.shape[0]
+
+    # SVD factorisation
+    _U, _S, _V = np.linalg.svd(_cov)
+
+    # Decorrelation
+    _decorrelated = np.dot(_shifted, _U)
+
+    # Whitening
+    _whitened = _decorrelated / np.sqrt(_S + 1e-2)
+
+    return _whitened

@@ -1,7 +1,9 @@
-import numpy             as np
 import math              as mt
 import time              as tm
+import numpy             as np
+import scipy.special     as ss
 import matplotlib.pyplot as plt
+
 
 class NEURAL_NETWORK(object):
 
@@ -13,13 +15,16 @@ class NEURAL_NETWORK(object):
         # List of number of neurons per layer
         self.mNeurons   = fNeurons
 
+        # Dropout scaling
+        self.mDropoutScaling = 0.5
+        
         # Learning rate
         self.mEpsilon   = 0.01
 
         # Sparsity
         self.mBeta     = 3.0
         self.mSparsity = 0.05
-        
+
         # Momentum
         self.mMomentum  = 0.5
         self.mLambda    = 0.2
@@ -39,22 +44,18 @@ class NEURAL_NETWORK(object):
             _nIn  = fNeurons[i]
             _nOut = fNeurons[i+1]
             
-            _min = -mt.sqrt(6. / (_nIn + _nOut + 1))
-            _max = -_min
-
             # Weights random initialization
-            _rand = np.random.RandomState(int(tm.time()))
+            _mean = 0.0
+            _std  = 1. / mt.sqrt(_nIn)
             _size = (_nOut, _nIn)
 
-            self.mWeights.append(np.asarray(_rand.uniform(_min,
-                                                          _max,
-                                                          _size)))
+            self.mWeights.append(np.random.normal(_mean,_std,_size))
 
             # Biases initialization to zeros' vector
             self.mBiases.append(np.zeros((_nOut, 1)))
 
             # Weights variations
-            self.mWvar.append(np.zeros(self.mWeights[i].shape))
+            self.mWvar.append(np.zeros(_size))
 
 #####################################################################
 # SETS PREPARATION AND RESULTS VISUALIZATION
@@ -72,25 +73,22 @@ class NEURAL_NETWORK(object):
 
         _testsets = fSets[fIdx * _slice:(fIdx + 1) * _slice, :]
 
+        if fLbls is None:
+            return _trainsets, _testsets
+
         #########################################################
         # Only for decision making
-        if fLbls is not None:
-            _trainlbls = fLbls[0:fIdx * _slice]
             
-            if fIdx == 0:
-                _trainlbls = fLbls[(fIdx + 1) * _slice:len(fLbls)]
+        _trainlbls = fLbls[0:fIdx * _slice]
 
-            else:
-                np.hstack((_trainlbls,
-                           fLbls[(fIdx + 1) * _slice:len(fLbls)]))
-
-            _testlbls = fLbls[fIdx * _slice:(fIdx + 1) * _slice]
-
-            return (_trainsets, _trainlbls), (_testsets , _testlbls)
+        _trainlbls = np.hstack((_trainlbls,
+                                fLbls[(fIdx+1)*_slice:len(fLbls)]))
+        
+        _testlbls = fLbls[fIdx * _slice:(fIdx + 1) * _slice]
+        
+        return (_trainsets, _trainlbls), (_testsets , _testlbls)
         ###########################################################
-                
-        return _trainsets, _testsets
-
+        
 #####################################################################
 
     def build_batch(self, fSize, fIdx, fSets, fLbls=None):
@@ -112,7 +110,7 @@ class NEURAL_NETWORK(object):
 
             return _sets, _lbls
         ###############################################
-                
+        
         return _sets
     
 #####################################################################
@@ -129,14 +127,14 @@ class NEURAL_NETWORK(object):
         plt.close()
 
 #####################################################################
-            
+        
     # Neurons vision from first hidden layer
     def neurons_visions(self):
 
         print "Building an approximate neurons vision...\n"
         
-        _img = []
-            
+        _img = np.zeros((self.mNeurons[1], self.mNeurons[0]))
+        
         for i in xrange(len(self.mWeights[0])):            
 
             _row = []
@@ -148,10 +146,79 @@ class NEURAL_NETWORK(object):
             for j in xrange(len(self.mWeights[0][i])):
                 _row.append(self.mWeights[0][i,j] / np.sqrt(_sws))
 
-            _img.append(_row)
+            _img[i,:] = _row
 
         return _img
 
+#####################################################################
+# LOGISTIC FUNCTION
+#####################################################################
+
+    def sigmoid_exp(self, fX, fA):
+        '''Compute the sigmoid function : 1 / (1 + e^(-x)) + ax
+        With a small linear coefficient to avoid flat spot.
+
+        INPUT  : A single value, vector, matrix and small coefficient
+        OUTPUT : Sigmoid-value of the given input'''
+        
+        return ss.expit(fX) + fA * fX
+
+#####################################################################
+    
+    def dsigmoid_exp(self, fX, fA):
+        '''Compute the derived sigmoid function following the 
+        derived formula : f'(x) = f(x) (1 - f(x)) + a.
+
+        INPUT  : Sigmoid output and small coefficient
+        OUTPUT : The derived value''' 
+            
+        return fA + fX * (1 - fX)
+
+#####################################################################
+
+    def sigmoid_tanh(self, fX, fA):
+        '''Compute the sigmoid function : 1.7159*tanh(2/3 * x) + ax
+        With a small linear coefficient to avoid flat spot.
+
+        INPUT  : A single value, vector, matrix and small coefficient
+        OUTPUT : Sigmoid-value of the given input'''
+
+        return 1.7159 * np.tanh(2. * fX / 3.) + fA * fX
+
+#####################################################################
+
+    def dsigmoid_tanh(self, fX, fA):
+        '''Compute the derived sigmoid function following the 
+        derived formula : f'(x) = a + f(x)^2
+
+        INPUT  : Sigmoid output, small coefficient
+        OUTPUT : The derived value''' 
+
+        return fA + 1.7159 * 2./3. + 2./3. * fX**2
+
+#####################################################################
+
+    def sigmoid(self, fX):
+        '''Compute a sigmoid function with a small linear 
+        from developers implementation (see neural_network.py)
+        coefficient to avoid flat spot. Sigmoid function depend
+
+        INPUT  : A single value, vector, matrix
+        OUTPUT : Sigmoid-value of the given input'''
+
+        return self.sigmoid_tanh(fX, 0.)
+
+#####################################################################
+
+    def dsigmoid(self, fX):
+        '''Compute a derived sigmoid function. The derived formula
+        depend from developers implementation (see neural_network.py)
+
+        INPUT  : Sigmoid output, small coefficient
+        OUTPUT : The derived value''' 
+
+        return self.dsigmoid_tanh(fX, 0.)
+    
 #####################################################################
 # COST PROPAGATION    
 #####################################################################
@@ -159,25 +226,28 @@ class NEURAL_NETWORK(object):
     # Compute the average cost obtained with a set of train inputs
     def error(self, fOut, fIn):
 
-        return np.sum((fOut - fIn)**2) / 2.
+        return np.sum(np.square(fOut - fIn)) / 2.
 
 #####################################################################
 # ADAPTIVE LEARNING RATE
 #####################################################################
-        
-    def grad_dir_angle(self, fWvar, fWgrad):
 
-        return np.sum(-fWgrad * fWvar) / (np.linalg.norm(fWgrad) * np.linalg.norm(fWvar))
-
-#####################################################################
-    
     def angle_driven_approach(self, fWgrad):
 
+        _grad = fWgrad[-1]
+        _var  = self.mWvar[-1]
+        
+        # Angle between previous update and current gradient
+        _teta  = np.sum(-_grad * _var)
+        _teta /= (np.linalg.norm(_grad) * np.linalg.norm(_var))
+        
         # Learning rate update
-        self.mEpsilon = self.mEpsilon * (1 + 0.5 * self.grad_dir_angle(self.mWvar[-1], fWgrad[-1]))
+        self.mEpsilon *= (1 + 0.5 * _teta)
 
         # Momentum update
-        self.mMomentum = self.mLambda * self.mEpsilon * np.linalg.norm(fWgrad[-1]) / np.linalg.norm(self.mWvar[-1])
+        self.mMomentum  = self.mLambda * self.mEpsilon
+        self.mMomentum *= np.linalg.norm(fWgrad[-1])
+        self.mMomentum /= np.linalg.norm(self.mWvar[-1])
     
 #####################################################################
 # BACKUP
@@ -185,9 +255,6 @@ class NEURAL_NETWORK(object):
 
     # Save the weights and biases computed in a textfile
     def save_state(self, fName):
-
-        if fName is None:
-            return
         
         for i in np.arange(len(self.mWeights)):
             _str = "../states/" + fName + "_W" + str(i) + ".txt"
@@ -202,9 +269,6 @@ class NEURAL_NETWORK(object):
     # Load the weights and biases computed from a textfile
     def load_state(self, fName):
 
-        if fName is None:
-            return
-        
         for i in xrange(len(self.mWeights)):
             _str = "../states/" + fName + "_W" + str(i) + ".txt"
             try:
@@ -250,8 +314,8 @@ class NEURAL_NETWORK(object):
             print "\t \t -> Layer", i + 1
             _m = np.zeros(self.mWeights[i].shape)
             
-            for j in np.arange(len(self.mWeights[i])):
-                for k in np.arange(len(self.mWeights[i][j])):
+            for j in xrange(len(self.mWeights[i])):
+                for k in xrange(len(self.mWeights[i][j])):
                     self.mWeights[i][j,k] += _epsilon
                     _left = self.output_and_cost(fInput, fRef)
 
@@ -267,13 +331,13 @@ class NEURAL_NETWORK(object):
 
         # Numerical gradient according to b
         print "\t Numerical gradient according to Biases."    
-        for i in np.arange(len(self.mBiases)):
+        for i in xrange(len(self.mBiases)):
 
             print "\t \t -> Layer", i + 1
             _v = np.zeros(self.mBiases[i].shape)
             
-            for j in np.arange(len(self.mBiases[i])):
-            
+            for j in xrange(len(self.mBiases[i])):
+                
                 self.mBiases[i][j] += _epsilon
                 _left = self.output_and_cost(fInput, fRef)
 
@@ -286,22 +350,28 @@ class NEURAL_NETWORK(object):
                 self.mBiases[i][j] += _epsilon
 
             _numBgrad.append(_v)
-                      
+            
         return _numWgrad, _numBgrad
 
 #####################################################################
     
     # Check gradient results
-    def gradient_checking(self, _nWgrad, _nBgrad, _wGrad, _bGrad):
+    def gradient_checking(self, fIn, fRef, fWgrad, fBgrad, fBatch):
 
-        _wError = np.zeros(len(_nWgrad))
-        _bError = np.zeros(len(_nBgrad))
+        self.mBeta = 0
         
-        for i in xrange(len(_nWgrad)):
-            _wError[i]  = np.linalg.norm(_nWgrad[i] - _wGrad[i]) / np.linalg.norm(_nWgrad[i] + _wGrad[i])
+        _nGrad = self.numerical_gradient(fIn, fRef, fBatch)
+        
+        _wError = np.zeros(len(_nGrad[0]))
+        _bError = np.zeros(len(_nGrad[1]))
+        
+        for i in xrange(len(_nGrad[0])):
+            _wError[i]  = np.linalg.norm(_nGrad[0][i] - fWgrad[i])
+            _wError[i] /= np.linalg.norm(_nGrad[0][i] + fWgrad[i])
 
-        for i in xrange(len(_nBgrad)):
-            _bError[i]  = np.linalg.norm(_nBgrad[i] - _bGrad[i]) / np.linalg.norm(_nBgrad[i] + _bGrad[i])
+        for i in xrange(len(_nGrad[1])):
+            _bError[i]  = np.linalg.norm(_nGrad[1][i] - fBgrad[i])
+            _bError[i] /= np.linalg.norm(_nGrad[1][i] + fBgrad[i])
 
         print _wError
         print _bError

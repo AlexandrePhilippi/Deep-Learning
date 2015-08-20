@@ -14,19 +14,15 @@ class DECISION(AUTOENCODERS):
 #####################################################################
     
     # Algorithm which train the neural network to reduce cost
-    def train(self, fSets, fIter, fSize, fName, fCyc=6, fSlc=10000):
+    def train(self, fImgs, fLbls, fIter, fBatch, fName):
 
         print "Training...\n"
 
-        _wVar  = [np.zeros(_w.shape) for _w in self.mWeights]
         _gcost = []
         _gperf = []
         _gtime = []
 
         _done  = fIter
-        
-        # Cross validation index
-        _idx   = 0
         
         for i in xrange(fIter):
 
@@ -34,35 +30,28 @@ class DECISION(AUTOENCODERS):
             _gcost.append(0)
             _gperf.append(0)
             
-            for j in xrange(fCyc):
+            for j in xrange(self.mCycle):
 
-                _idx, _trn, _tst = self.cross_validation(fSets[0],
-                                                         fSets[1],
-                                                         _idx,
-                                                         fSlc,
-                                                         fCyc)
-                                                         
-                for k in xrange(len(_trn[0]) / fSize):
+                _trn, _tst = self.cross_validation(j, fImgs, fLbls)
+
+                for k in xrange(len(_trn[0]) / fBatch):
 
                     # Input and labels batch
-                    _input, _lbls = self.build_batch(_trn[0],
-                                                     _trn[1], fSize)
+                    _in, _lbls = self.build_batch(fBatch , k,
+                                                  _trn[0], _trn[1])
                     
                     # One training step
-                    _ret = self.train_one_step(_input, _lbls, fSize)
+                    _ret = self.train_one_step(fBatch, _in, _lbls)
 
                     # Adapt learning rate
                     if(i > 0 or j > 0 or k > 0):
-                        self.angle_driven_approach(_wVar, _ret[1])
-
-                    # Weight variation computation
-                    _wVar= self.weight_variation(_wVar, _ret[1])
+                        self.angle_driven_approach(_ret[1])
                         
                     # Update weights and biases for next iteration
-                    self.update(_wVar, _ret[2])
+                    self.update(_ret[1], _ret[2])
 
                 # Global cost and perf update in a cycle
-                _cost, _perf  = self.evaluate(_tst)
+                _cost, _perf  = self.evaluate(_tst[0], _tst[1])
                 _gcost[i]    += _cost
                 _gperf[i]    += _perf
 
@@ -71,11 +60,11 @@ class DECISION(AUTOENCODERS):
             print "Iteration {0} in {1}s".format(i, _gtime[i])
 
             # Global cost for one cycle
-            _gcost[i] /= fCyc
+            _gcost[i] /= self.mCycle
             print "Cost of iteration : {0}".format(_gcost[i])
 
             # Global perf for one cycle
-            _gperf[i] /= fCyc
+            _gperf[i] /= self.mCycle
             print "Current performances : {0}".format(_gperf[i])
 
             # Parameters
@@ -84,8 +73,7 @@ class DECISION(AUTOENCODERS):
 
             # Learning rate update
             if(i > 0):
-                if(abs(_gcost[i-1] - _gcost[i])  < 0.001 or
-                       _gperf[i]   - _gperf[i-1] < 0):
+                if(abs(_gcost[i-1] - _gcost[i])  < 0.001):
                     _done = i + 1
                     break
 
@@ -95,32 +83,36 @@ class DECISION(AUTOENCODERS):
 
 #####################################################################
 
-    def evaluate(self, fTests):
+    def evaluate(self, fImgs, fLbls):
 
         _out  = []
         _cost = 0
         
-        for i in xrange(len(fTests[0])):
-            _in, _lbls = self.build_batch(fTests[0],fTests[1],1,[i])
+        for i in xrange(len(fImgs)):
+            _in   = fImgs[[i],:].T
+
+            _lbls = np.zeros((self.mNeurons[-1], 1))
+            _lbls[fLbls[i]] = 1
+            
             _out.append(self.propagation(_in)[-1])
-            _cost     += self.propagation_cost(_out[-1], _lbls)
+            _cost     += self.error(_out[-1], _lbls)
             
         # Benchmarking    
         _valid = 0.            
         for i in xrange(len(_out)):
-            _valid += (fTests[1][i] == np.argmax(_out[i]))
+            _valid += (fLbls[i] == np.argmax(_out[i]))
 
-        _perf = (_valid * 100.) / len(fTests[0])
-        _cost = _cost / len(fTests[0])    
+        _perf = (_valid * 100.) / len(fImgs)
+        _cost = _cost / len(fImgs)    
             
         return _cost, _perf 
 
 #####################################################################
 
-    def test(self, fSets, fName):
+    def test(self, fImgs, fLbls, fName):
 
         print "Testing the network ..."
 
-        _cost, _perf = self.evaluate(fSets)
+        _cost, _perf = self.evaluate(fImgs, fLbls)
         
         print "Cost : {0}, Performances : {1}".format(_cost, _perf)

@@ -16,7 +16,7 @@ def main(argv):
     _batch   = 50
 
     _data    = "mnist"
-    _save    = "default"
+    _save    = None
     _load    = None
 
 
@@ -58,7 +58,8 @@ def main(argv):
         _nnet = dc.DECISION(_neurons)
 
     # Loading pretrained state if _load is given
-    _nnet.load_state(_load)
+    if _load is not None:
+        _nnet.load_state(_load)
 
     # Loading the datasets for training
     _train = ld.load_datasets(_data, "train")
@@ -67,7 +68,8 @@ def main(argv):
     _nnet.train(_train[0], _train[1], _iter, _batch, _save)
 
     # Saving states if _save is given
-    _nnet.save_state(_save)
+    if _save is not None:
+        _nnet.save_state(_save)
 
     # Loading the datasets for testing    
     _test = ld.load_datasets(_data, "test")
