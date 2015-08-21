@@ -56,7 +56,10 @@ class DECISION(AUTOENCODERS):
                     self.weight_variation(_wGrad)
                     
                     # Update weights and biases
-                    self.update(_wGrad, _bGrad)
+                    self.update(_bGrad)
+
+                    # Adapt learning rate
+                    self.average_gradient_approach(_wGrad)
 
                 # Global cost and perf update in a cycle
                 _cost, _perf  = self.evaluate(_tst[0], _tst[1])
@@ -79,6 +82,7 @@ class DECISION(AUTOENCODERS):
             print "Epsilon {0} Momentum {1}\n".format(self.mEpsilon,
                                                       self.mMomentum)
 
+            # Stop condition
             if(i > 0):
                 if(abs(_gcost[i-1] - _gcost[i])  < 0.001):
                     _done = i + 1
