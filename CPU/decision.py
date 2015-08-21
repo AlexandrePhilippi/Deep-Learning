@@ -43,7 +43,7 @@ class DECISION(AUTOENCODERS):
                     _out = self.dropout_propagation(_in)
 
                     # Local error for each layer
-                    _err = self.compute_layer_error(_out, _in)
+                    _err = self.layer_error(_out, _in)
         
                     # Gradient for stochastic gradient descent    
                     _wGrad, _bGrad = self.gradient(_err, _out)

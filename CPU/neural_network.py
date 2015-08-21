@@ -61,9 +61,19 @@ class NEURAL_NETWORK(object):
 # SETS PREPARATION AND RESULTS VISUALIZATION
 #####################################################################
 
-    # Cross validation set
     def cross_validation(self, fIdx, fImgs, fLbls=None):
+        '''Cross validation split a given set in two part :
+        Training and Testing. For example, for a 60000 images set.
+        50000 will be used for training and 10000 for testing.
 
+        Index correspond to the current iteration. In fact,
+        cross validation as to be called many times in order to do
+        a complete rotation. Each splitted set has to be used for
+        test and training.
+
+        INPUT  : Index, images and labels (not for autoencoders)
+        OUPUT  : Splitted images and labels sets.'''
+        
         _slice = self.mSlice
 
         _trainsets = fImgs[0:fIdx * _slice, :]
@@ -92,7 +102,15 @@ class NEURAL_NETWORK(object):
 #####################################################################
 
     def build_batch(self, fIdx, fImgs, fLbls=None):
+        '''Build batch randomize the mini-batch creation. It prevents
+        neural network from learning a specific scheduling.
+        
+        Index represent the current iteration. It allows to shuffle
+        the pool only after a round of the entire training set.
 
+        INPUT  : Index, images, labels (not for autoencoders)
+        OUTPUT : Mini-batch'''
+        
         _size = self.mBatchSize
             
         if fIdx == 0:
@@ -118,7 +136,14 @@ class NEURAL_NETWORK(object):
 #####################################################################
 
     def plot(self, fAbs, fOrd, fName, fType):
+        '''With a name given it saves the plot, without it just
+        prints the plot.
 
+        fType correspond to a specification for the file saved
+
+        INPUT  : Abscissas, ordinates, name (not necessary), type
+        OUTPUT : Nothing'''
+        
         plt.plot(fAbs, fOrd)
 
         if fName is not None:
@@ -130,9 +155,13 @@ class NEURAL_NETWORK(object):
 
 #####################################################################
         
-    # Neurons vision from first hidden layer
-    def neurons_visions(self):
-
+    def neurons_vision(self):
+        '''Compute an approximation of the neuron vision from the 
+        first hidden layer.
+        
+        INPUT  : Nothing
+        OUTPUT : Neurons vision'''
+        
         print "Building an approximate neurons vision...\n"
         
         _img = np.zeros((self.mNeurons[1], self.mNeurons[0]))
@@ -225,9 +254,12 @@ class NEURAL_NETWORK(object):
 # COST PROPAGATION    
 #####################################################################
     
-    # Compute the average cost obtained with a set of train inputs
     def error(self, fOut, fIn):
+        '''Compute the error term for a given input (mini-batch).
 
+        INPUT  : Output, input
+        OUTPUT : Error'''
+        
         return np.sum(np.square(fOut - fIn)) / 2.
 
 #####################################################################
@@ -235,11 +267,21 @@ class NEURAL_NETWORK(object):
 #####################################################################
 
     def angle_driven_approach(self, fWgrad):
+        '''Dynamic learning rate based on angle driven approach.
+        Teta correspond to the angle between the previous variation
+        and the current gradient.
 
+        From L.W. Chan - An adaptive training algorithm for back...
+
+        INPUT  : Weight gradient (variation is class variable)
+        OUTPUT : Nothing 
+
+        Epsilon and momentum are modified in class'''
+        
         for i in xrange(self.mNbLayers - 1):
 
-            _grad = fWgrad[i]
             _var  = self.mVariations[i]
+            _grad = fWgrad[i]
         
             # Angle between previous update and current gradient
             _teta  = np.sum(-_grad * _var)
@@ -256,6 +298,13 @@ class NEURAL_NETWORK(object):
 #####################################################################
 
     def average_gradient_approach(self, fWgrad):
+        '''Dynamic learning rate based on average gradient approach
+        from Yan LeCun - Efficient backprop.
+
+        INPUT  : Weight gradient
+        OUTPUT : Nothing
+        
+        Epsilon is modified in class'''
 
         aga = self.average_gradient_approach.__func__
         if not hasattr(aga, "_avg"):
@@ -274,8 +323,12 @@ class NEURAL_NETWORK(object):
 # BACKUP
 #####################################################################
 
-    # Save the weights and biases computed in a textfile
     def save_state(self, fName):
+        '''Save weight and biases for backup and deep network
+        training.
+
+        INPUT  : Name for the txtfile created
+        OUTPUT : Nothing'''
         
         for i in np.arange(len(self.mWeights)):
             _str = "../states/" + fName + "_W" + str(i) + ".txt"
@@ -287,9 +340,14 @@ class NEURAL_NETWORK(object):
 
 #####################################################################
 
-    # Load the weights and biases computed from a textfile
     def load_state(self, fName):
+        '''Load weights and biases for backup and deep network
+        training.
 
+        INPUT  : Name of the txtfile to be loaded
+        OUTPUT : Nothing'''
+
+        # Loading weights
         for i in xrange(len(self.mWeights)):
             _str = "../states/" + fName + "_W" + str(i) + ".txt"
             try:
@@ -297,6 +355,7 @@ class NEURAL_NETWORK(object):
             except IOError:
                 print "Random initialization for W{0}".format(i)
 
+        # Loading biases
         for i in xrange(len(self.mBiases)):
             _str = "../states/" + fName + "_B" + str(i) + ".txt"
             try:
@@ -306,9 +365,15 @@ class NEURAL_NETWORK(object):
 
 #####################################################################
     
-    # Use to create a new datasets for next layers
     def save_output(self, fName, fType, fImgs):
+        '''Save output from the first hidden layer in order to 
+        create a new datasets for deep network pretraining.
 
+        Name and type are used for filename.
+
+        INPUT  : Name, type, images
+        OUTPUT : Nothing.'''
+        
         _out = np.empty((len(fImgs),self.mNeurons[1]))
         
         for i in xrange(len(fImgs)):
@@ -320,9 +385,12 @@ class NEURAL_NETWORK(object):
 # VERIFICATIONS
 #####################################################################
     
-    # Compute numerical gradient value in order to check results
-    def numerical_gradient(self, fInput, fRef, fBatch):
+    def numerical_gradient(self, fInput, fRef):
+        '''Numerical gradient to check results from backpropagation.
 
+        INPUT  : Input, References (labels or input)
+        OUTPUT : Numerical gradient'''
+        
         _epsilon  = 0.00001
         
         _numWgrad = []
@@ -344,7 +412,7 @@ class NEURAL_NETWORK(object):
                     _right = self.output_and_cost(fInput, fRef)
 
                     _res = (_left[1] - _right[1]) / (2. * _epsilon)
-                    _m[j][k] = _res / fBatch
+                    _m[j][k] = _res / self.mBatchSize
                     
                     self.mWeights[i][j,k] += _epsilon
 
@@ -366,7 +434,7 @@ class NEURAL_NETWORK(object):
                 _right = self.output_and_cost(fInput, fRef)
 
                 _res  = (_left[1] - _right[1]) / (2. * _epsilon)
-                _v[j] = _res / fBatch
+                _v[j] = _res / self.mBatchSize
                 
                 self.mBiases[i][j] += _epsilon
 
@@ -377,11 +445,16 @@ class NEURAL_NETWORK(object):
 #####################################################################
     
     # Check gradient results
-    def gradient_checking(self, fIn, fRef, fWgrad, fBgrad, fBatch):
+    def gradient_checking(self, fIn, fRef, fWgrad, fBgrad):
+        '''Error between numerical gradient and approximation from
+        backpropagation. Should be near to 10^-8.
 
-        self.mBeta = 0
+        INPUT  : Input, reference, weights and biases gradient
+        OUTPUT : Nothing (prints the error)'''
         
-        _nGrad = self.numerical_gradient(fIn, fRef, fBatch)
+        self.mBeta = 0.
+        
+        _nGrad = self.numerical_gradient(fIn, fRef)
         
         _wError = np.zeros(len(_nGrad[0]))
         _bError = np.zeros(len(_nGrad[1]))
@@ -399,9 +472,13 @@ class NEURAL_NETWORK(object):
 
 #####################################################################
     
-    # One step of the train algorithm to get output and cost
     def output_and_cost(self, fIn, fRef):
+        '''One part of the training algorithm to avoid 
+        code repetition.
 
+        INPUT  : Input, reference (labels or inputs)
+        OUTPUT : Output and cost'''
+        
         # All the output generated according to the batch
         _out  = self.propagation(fIn)
         

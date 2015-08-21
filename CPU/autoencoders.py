@@ -60,16 +60,30 @@ class AUTOENCODERS(NEURAL_NETWORK):
 #####################################################################
     
     def sparsity(self, fOut):
-        
+        '''Compute sparsity term for each layer error. Still bring 
+        some zero-division problem. Cannot be used correctly with
+        dynamic learning rate (angle driven approach) and dropout.
+        In fact dropout already implies sparsity.
+
+        INPUT  : Output of a layer
+        OUTPUT : Sparsity term'''
+
+        # Average activation of layers' neurons
         _avg = fOut.mean(1, keepdims=True)
-        
+
         return self.mBeta * (-self.mSparsity /_avg + (1. -self.mSparsity) / (1. - _avg))
-    
+
 #####################################################################
     
-    # Compute all the locals error in order to compute gradient
-    def compute_layer_error(self, fOut, fIn):
+    def layer_error_sparsity(self, fOut, fIn):
+        '''Compute local error of each layer with sparsity
+        term in order to get weights and biases gradients. 
+        Part of backpropagation.
 
+        INPUT  : Output of each layer, mini-batch
+        OUTPUT : Error vector of each layer'''
+
+        
         # Last layer local error
         _err = [-(fIn - fOut[-1]) * self.dsigmoid(fOut[-1])]
 
@@ -80,10 +94,35 @@ class AUTOENCODERS(NEURAL_NETWORK):
 
             _dsigmoid  = self.dsigmoid(fOut[-i-1])
 
-            # _sparsity  = self.sparsity(fOut[-i-1])
+            _sparsity  = self.sparsity(fOut[-i-1])
+
+            _err.append((_backprop + _sparsity) * _dsigmoid)
+
+        _err.reverse()
+
+        return _err
+    
+#####################################################################
+    
+    def layer_error(self, fOut, fIn):
+        '''Compute local error of each layer in order to get 
+        weights and biases gradients. Part of backpropagation.
+
+        INPUT  : Output of each layer, mini-batch
+        OUTPUT : Error vector of each layer'''
+
+        
+        # Last layer local error
+        _err = [-(fIn - fOut[-1]) * self.dsigmoid(fOut[-1])]
+
+        # Intermediate layer local error
+        for i in xrange(1, self.mNbLayers-1):
+
+            _backprop  = np.dot(self.mWeights[-i].T, _err[i-1])
+
+            _dsigmoid  = self.dsigmoid(fOut[-i-1])
 
             _err.append(_backprop * _dsigmoid)
-            # _err.append((_backprop + _sparsity) * _dsigmoid)
 
         _err.reverse()
 
@@ -91,9 +130,12 @@ class AUTOENCODERS(NEURAL_NETWORK):
 
 #####################################################################
 
-    # Compute the gradient according to W and b in order to
-    # realize the mini-batch gradient descent    
     def gradient(self, fErr, fOut):
+        '''Compute weights and biases gradient in order to realize
+        mini-batch (stochastic, online) gradient descent.
+
+        INPUT  : Error and output vector of each layers
+        OUPUT  : Weights and biases gradient'''
 
         _wGrad = []
         _bGrad = []
@@ -107,7 +149,12 @@ class AUTOENCODERS(NEURAL_NETWORK):
 #####################################################################
     
     def variations(self, fWgrad):
+        '''Compute weight variations with momentum and 
+        regularization L2 terms.
 
+        INPUT  : Weight gradient of each layers
+        OUTPUT : Nothing (variations are class variables)'''
+        
         for i in xrange(self.mNbLayers-1):
             self.mVariations[i] *= self.mMomentum[i]
             self.mVariations[i] -= self.mEpsilon[i] * fWgrad[i]
@@ -117,7 +164,13 @@ class AUTOENCODERS(NEURAL_NETWORK):
     
     # Update weights and biases parameters with gradient descent
     def update(self, fBgrad):
+        '''Stochastic (online, mini-batch) gradient descent.
 
+        Weight variations, weights and biases are class variables.
+
+        INPUT  : Biases gradient
+        OUTPUT : Nothing'''
+        
         for i in xrange(self.mNbLayers-1):
             
             # Update weights
@@ -130,6 +183,11 @@ class AUTOENCODERS(NEURAL_NETWORK):
     
     # Algorithm which train the neural network to reduce cost
     def train(self, fImgs, fLbls, fIterations, fName):
+        '''Training algorithm. Can evolved according to your need.
+
+        INPUT  : Images set, labels set (None for autoencoders),
+                 number of iterations before stopping, name for save
+        OUTPUT : Nothing'''
 
         print "Training...\n"
 
@@ -157,10 +215,10 @@ class AUTOENCODERS(NEURAL_NETWORK):
                     _in  = self.build_batch(k, _trn)
 
                     # Activation propagation
-                    _out = self.dropout_propagation(_in)
+                    _out = self.propagation(_in)
 
                     # Local error for each layer
-                    _err = self.compute_layer_error(_out, _in)
+                    _err = self.layer_error_sparsity(_out, _in)
         
                     # Gradient for stochastic gradient descent    
                     _wGrad, _bGrad = self.gradient(_err, _out)
@@ -212,6 +270,13 @@ class AUTOENCODERS(NEURAL_NETWORK):
 #####################################################################
 
     def evaluate(self, fTests):
+        '''Evaluate the network at a given iteration. In fact,
+        train set is split in 2 by cross-validation. One part is 
+        used for training, the other part for evaluation and error
+        calculation.
+
+        INPUT  : Test set from training set
+        OUTPUT : Current error'''
         
         _out  = self.propagation(fTests.T)
             
@@ -221,7 +286,12 @@ class AUTOENCODERS(NEURAL_NETWORK):
 
     # Test the neural network over a test set
     def test(self, fImgs, fLbls, fName):
+        '''Neural network testing after training.
 
+        INPUT  : Images set, labels set (None for autoencoders),
+                 name for save.
+        OUTPUT : Nothing'''
+        
         print "Testing the neural networks..."
 
         _out   = self.propagation(fImgs.T)
@@ -237,4 +307,4 @@ class AUTOENCODERS(NEURAL_NETWORK):
         dy.display(fName, "out", [fImgs, _out[-1].T])
 
         # Approximated vision of first hidden layer neurons
-        dy.display(fName, "neurons", [self.neurons_visions()], 5, 5)
+        dy.display(fName, "neurons", [self.neurons_vision()], 5, 5)
