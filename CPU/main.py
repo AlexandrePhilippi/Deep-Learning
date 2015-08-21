@@ -11,9 +11,9 @@ def main(argv):
     np.set_printoptions(precision=3, threshold='nan')
     
     # Parameters initialization
-    _neurons = [784, 25, 784]
-    _iter    = 2000
-    _batch   = 50
+    _neurons     = [784, 25, 784]
+    _iterations  = 2000
+    _batchSize   = 50
 
     _data    = "mnist"
     _save    = None
@@ -34,10 +34,10 @@ def main(argv):
             sys.exit()
 
         elif opt == '-i':
-            _iter = int(arg)
+            _iterations = int(arg)
             
         elif opt == '-b':
-            _batch = int(arg)
+            _batchSize = int(arg)
 
         elif opt == '-s':
             _save = arg
@@ -53,9 +53,9 @@ def main(argv):
 
     # Creating the neural network
     if _neurons[0] == _neurons[-1]:
-        _nnet = ac.AUTOENCODERS(_neurons)
+        _nnet = ac.AUTOENCODERS(_neurons, _batchSize)
     else:
-        _nnet = dc.DECISION(_neurons)
+        _nnet = dc.DECISION(_neurons, _batchSize)
 
     # Loading pretrained state if _load is given
     if _load is not None:
@@ -65,7 +65,7 @@ def main(argv):
     _train = ld.load_datasets(_data, "train")
 
     # Training the network
-    _nnet.train(_train[0], _train[1], _iter, _batch, _save)
+    _nnet.train(_train[0], _train[1], _iterations, _save)
 
     # Saving states if _save is given
     if _save is not None:

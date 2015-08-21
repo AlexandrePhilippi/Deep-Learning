@@ -6,15 +6,15 @@ import display as dy
 
 class DECISION(AUTOENCODERS):
 
-    def __init__(self, fNeurons):
+    def __init__(self, fNeurons, fBatchSize):
 
         # Mother class initialization
-        AUTOENCODERS.__init__(self, fNeurons)
+        AUTOENCODERS.__init__(self, fNeurons, fBatchSize)
         
 #####################################################################
     
     # Algorithm which train the neural network to reduce cost
-    def train(self, fImgs, fLbls, fIter, fBatch, fName):
+    def train(self, fImgs, fLbls, fIterations, fName):
 
         print "Training...\n"
 
@@ -22,9 +22,9 @@ class DECISION(AUTOENCODERS):
         _gperf = []
         _gtime = []
 
-        _done  = fIter
+        _done  = fIterations
         
-        for i in xrange(fIter):
+        for i in xrange(fIterations):
 
             _gtime.append(tm.time())
             _gcost.append(0)
@@ -34,21 +34,29 @@ class DECISION(AUTOENCODERS):
 
                 _trn, _tst = self.cross_validation(j, fImgs, fLbls)
 
-                for k in xrange(len(_trn[0]) / fBatch):
+                for k in xrange(len(_trn[0]) / self.mBatchSize):
 
                     # Input and labels batch
-                    _in, _lbls = self.build_batch(fBatch , k,
-                                                  _trn[0], _trn[1])
-                    
-                    # One training step
-                    _ret = self.train_one_step(fBatch, _in, _lbls)
+                    _in, _lbls = self.build_batch(k,_trn[0],_trn[1])
+
+                    # Activation propagation
+                    _out = self.dropout_propagation(_in)
+
+                    # Local error for each layer
+                    _err = self.compute_layer_error(_out, _in)
+        
+                    # Gradient for stochastic gradient descent    
+                    _wGrad, _bGrad = self.gradient(_err, _out)
 
                     # Adapt learning rate
-                    if(i > 0 or j > 0 or k > 0):
-                        self.angle_driven_approach(_ret[1])
-                        
-                    # Update weights and biases for next iteration
-                    self.update(_ret[1], _ret[2])
+                    # if i > 0 or j > 0 or k > 0:
+                    #     self.angle_driven_approach(_wGrad)
+
+                    # Weight variation
+                    self.weight_variation(_wGrad)
+                    
+                    # Update weights and biases
+                    self.update(_wGrad, _bGrad)
 
                 # Global cost and perf update in a cycle
                 _cost, _perf  = self.evaluate(_tst[0], _tst[1])
@@ -71,7 +79,6 @@ class DECISION(AUTOENCODERS):
             print "Epsilon {0} Momentum {1}\n".format(self.mEpsilon,
                                                       self.mMomentum)
 
-            # Learning rate update
             if(i > 0):
                 if(abs(_gcost[i-1] - _gcost[i])  < 0.001):
                     _done = i + 1

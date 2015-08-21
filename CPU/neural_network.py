@@ -4,74 +4,74 @@ import numpy             as np
 import scipy.special     as ss
 import matplotlib.pyplot as plt
 
-
 class NEURAL_NETWORK(object):
 
-    def __init__(self, fNbLayers, fNeurons):
+    def __init__(self, fNbLayers, fNeurons, fBatchSize):
 
         # Numbers of layers
-        self.mNbLayers  = fNbLayers
+        self.mNbLayers       = fNbLayers
 
         # List of number of neurons per layer
-        self.mNeurons   = fNeurons
+        self.mNeurons        = fNeurons
+
+        # Batch size
+        self.mBatchSize      = fBatchSize
+
+        # Regularization terms
+        self.mRegu           = 0.001
+        
+        # Learning rate
+        self.mEpsilon        = [0.01] * 2
+        self.mLeakControl    = 0.2
+
+        # Sparsity
+        self.mBeta           = 3.0
+        self.mSparsity       = 0.05
+
+        # Momentum
+        self.mMomentum       = [0.5] * 2
+        self.mLambda         = 0.2
 
         # Dropout scaling
         self.mDropoutScaling = 0.5
-        
-        # Learning rate
-        self.mEpsilon   = 0.01
-
-        # Sparsity
-        self.mBeta     = 3.0
-        self.mSparsity = 0.05
-
-        # Momentum
-        self.mMomentum  = 0.5
-        self.mLambda    = 0.2
-        
-        # Neural network inner parameters initialization
-        self.mWeights  = []
-        self.mBiases   = []
-        self.mWvar     = []
 
         # Cross-validation, batch building
-        self.mCycle    = 6
-        self.mSlice    = 10000
-        self.mPool     = np.arange(50000)
-        
-        for i in xrange(self.mNbLayers-1):
+        self.mCycle = 6
+        self.mSlice = 10000
+        self.mPool  = np.arange((self.mCycle-1) * self.mSlice)
 
-            _nIn  = fNeurons[i]
-            _nOut = fNeurons[i+1]
-            
-            # Weights random initialization
+        # Weights, biases initialization
+        self.mWeights    = []
+        self.mBiases     = []
+        self.mVariations = []
+        
+        for i in xrange(self.mNbLayers - 1):
+
             _mean = 0.0
-            _std  = 1. / mt.sqrt(_nIn)
-            _size = (_nOut, _nIn)
+            _std  = 1. / mt.sqrt(fNeurons[i])
+            _size = (fNeurons[i+1], fNeurons[i])
 
             self.mWeights.append(np.random.normal(_mean,_std,_size))
 
-            # Biases initialization to zeros' vector
-            self.mBiases.append(np.zeros((_nOut, 1)))
+            self.mBiases.append(np.zeros((fNeurons[i+1], 1)))
 
-            # Weights variations
-            self.mWvar.append(np.zeros(_size))
-
+            self.mVariations.append(np.zeros(_size))
+        
 #####################################################################
 # SETS PREPARATION AND RESULTS VISUALIZATION
 #####################################################################
 
     # Cross validation set
-    def cross_validation(self, fIdx, fSets, fLbls=None):
+    def cross_validation(self, fIdx, fImgs, fLbls=None):
 
         _slice = self.mSlice
 
-        _trainsets = fSets[0:fIdx * _slice, :]
+        _trainsets = fImgs[0:fIdx * _slice, :]
 
         _trainsets = np.vstack((_trainsets,
-                                fSets[(fIdx+1)*_slice:len(fSets),:]))
+                                fImgs[(fIdx+1)*_slice:len(fImgs),:]))
 
-        _testsets = fSets[fIdx * _slice:(fIdx + 1) * _slice, :]
+        _testsets = fImgs[fIdx * _slice:(fIdx + 1) * _slice, :]
 
         if fLbls is None:
             return _trainsets, _testsets
@@ -91,19 +91,21 @@ class NEURAL_NETWORK(object):
         
 #####################################################################
 
-    def build_batch(self, fSize, fIdx, fSets, fLbls=None):
+    def build_batch(self, fIdx, fImgs, fLbls=None):
 
+        _size = self.mBatchSize
+            
         if fIdx == 0:
             np.random.shuffle(self.mPool)
         
-        _index = self.mPool[fIdx * fSize:(fIdx + 1) * fSize]
+        _index = self.mPool[fIdx * _size:(fIdx + 1) * _size]
 
-        _sets = fSets[_index,:].T
+        _sets = fImgs[_index,:].T
 
         ###############################################
         # Only for decision making
         if fLbls is not None:
-            _lbls = np.zeros((self.mNeurons[-1], fSize))
+            _lbls = np.zeros((self.mNeurons[-1], _size))
 
             for l in xrange(fSize):
                 _lbls[fLbls[_index[l]]][l] = 1
@@ -206,7 +208,7 @@ class NEURAL_NETWORK(object):
         INPUT  : A single value, vector, matrix
         OUTPUT : Sigmoid-value of the given input'''
 
-        return self.sigmoid_tanh(fX, 0.)
+        return self.sigmoid_exp(fX, 0.001)
 
 #####################################################################
 
@@ -217,7 +219,7 @@ class NEURAL_NETWORK(object):
         INPUT  : Sigmoid output, small coefficient
         OUTPUT : The derived value''' 
 
-        return self.dsigmoid_tanh(fX, 0.)
+        return self.dsigmoid_exp(fX, 0.001)
     
 #####################################################################
 # COST PROPAGATION    
@@ -234,20 +236,39 @@ class NEURAL_NETWORK(object):
 
     def angle_driven_approach(self, fWgrad):
 
-        _grad = fWgrad[-1]
-        _var  = self.mWvar[-1]
-        
-        # Angle between previous update and current gradient
-        _teta  = np.sum(-_grad * _var)
-        _teta /= (np.linalg.norm(_grad) * np.linalg.norm(_var))
-        
-        # Learning rate update
-        self.mEpsilon *= (1 + 0.5 * _teta)
+        for i in xrange(self.mNbLayers - 1):
 
-        # Momentum update
-        self.mMomentum  = self.mLambda * self.mEpsilon
-        self.mMomentum *= np.linalg.norm(fWgrad[-1])
-        self.mMomentum /= np.linalg.norm(self.mWvar[-1])
+            _grad = fWgrad[i]
+            _var  = self.mVariations[i]
+        
+            # Angle between previous update and current gradient
+            _teta  = np.sum(-_grad * _var)
+            _teta /= (np.linalg.norm(_grad) * np.linalg.norm(_var))
+        
+            # Learning rate update
+            self.mEpsilon[i] *= (1 + 0.5 * _teta)
+
+            # Momentum update
+            self.mMomentum[i]  = self.mLambda * self.mEpsilon[i]
+            self.mMomentum[i] *= np.linalg.norm(_grad)
+            self.mMomentum[i] /= np.linalg.norm(_var)
+
+#####################################################################
+
+    def average_gradient_approach(self, fWgrad):
+
+        aga = self.average_gradient_approach.__func__
+        if not hasattr(aga, "_avg"):
+            aga._avg = [np.zeros(self.mWeights[i].shape)
+                        for i in xrange(self.mNbLayers - 1)]
+
+        for i in xrange(self.mNbLayers - 1):
+
+            aga._avg[i] *= (1 - self.mLeakControl)
+            aga._avg[i] += self.mLeakControl * fWgrad[i]
+
+            self.mEpsilon[i] = self.mEpsilon[i] + 0.5 * self.mEpsilon[i] * (0.01 * np.linalg.norm(aga._avg[i]) - self.mEpsilon[i])
+        
     
 #####################################################################
 # BACKUP

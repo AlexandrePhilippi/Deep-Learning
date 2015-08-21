@@ -9,10 +9,13 @@ import display as dy
 
 class AUTOENCODERS(NEURAL_NETWORK):
     
-    def __init__(self, fNeurons):
+    def __init__(self, fNeurons, fBatchSize):
 
         # Mother class initialization
-        NEURAL_NETWORK.__init__(self, len(fNeurons), fNeurons)
+        NEURAL_NETWORK.__init__(self,
+                                len(fNeurons),
+                                fNeurons,
+                                fBatchSize)
 
 #####################################################################
 
@@ -53,6 +56,14 @@ class AUTOENCODERS(NEURAL_NETWORK):
             _out.append(self.sigmoid(np.dot(w, _out[-1]) + b))
 
         return _out
+
+#####################################################################
+    
+    def sparsity(self, fOut):
+        
+        _avg = fOut.mean(1, keepdims=True)
+        
+        return self.mBeta * (-self.mSparsity /_avg + (1. -self.mSparsity) / (1. - _avg))
     
 #####################################################################
     
@@ -69,7 +80,10 @@ class AUTOENCODERS(NEURAL_NETWORK):
 
             _dsigmoid  = self.dsigmoid(fOut[-i-1])
 
+            # _sparsity  = self.sparsity(fOut[-i-1])
+
             _err.append(_backprop * _dsigmoid)
+            # _err.append((_backprop + _sparsity) * _dsigmoid)
 
         _err.reverse()
 
@@ -79,38 +93,43 @@ class AUTOENCODERS(NEURAL_NETWORK):
 
     # Compute the gradient according to W and b in order to
     # realize the mini-batch gradient descent    
-    def gradient(self, fBatch, fErr, fOut):
+    def gradient(self, fErr, fOut):
 
         _wGrad = []
         _bGrad = []
 
         for err, out in zip(fErr, fOut):
-            _wGrad.append(np.dot(err, out.T) / fBatch)
+            _wGrad.append(np.dot(err, out.T) / self.mBatchSize)
             _bGrad.append(err.mean(1, keepdims=True))
             
         return _wGrad, _bGrad
     
 #####################################################################
     
-    # Update weights and biases parameters with gradient descent
-    def update(self, fWgrad, fBgrad):
+    def variations(self, fWgrad):
 
         for i in xrange(self.mNbLayers-1):
+            self.mVariations[i] *= self.mMomentum[i]
+            self.mVariations[i] -= self.mEpsilon[i] * fWgrad[i]
+            self.mVariations[i] -= self.mRegu * self.mWeights[i]
+            
+#####################################################################
+    
+    # Update weights and biases parameters with gradient descent
+    def update(self, fBgrad):
 
-            # Weight variation
-            self.mWvar[i]    *= self.mMomentum
-            self.mWvar[i]    -= self.mEpsilon * fWgrad[i]
+        for i in xrange(self.mNbLayers-1):
             
             # Update weights
-            self.mWeights[i] += self.mWvar[i]
+            self.mWeights[i] += self.mVariations[i]
 
             # Update biases
-            self.mBiases[i]  += self.mEpsilon * fBgrad[i]
+            self.mBiases[i]  += self.mEpsilon[i] * fBgrad[i]
     
 #####################################################################
     
     # Algorithm which train the neural network to reduce cost
-    def train(self, fImgs, fLbls, fIter, fBatch, fName):
+    def train(self, fImgs, fLbls, fIterations, fName):
 
         print "Training...\n"
 
@@ -119,9 +138,9 @@ class AUTOENCODERS(NEURAL_NETWORK):
         _gcost = []
         _gtime = []
         
-        _done  = fIter
+        _done  = fIterations
 
-        for i in xrange(fIter):
+        for i in xrange(fIterations):
 
             _gtime.append(tm.time())
             _gcost.append(0)
@@ -130,12 +149,12 @@ class AUTOENCODERS(NEURAL_NETWORK):
                 
                 _trn, _tst = self.cross_validation(j, fImgs)
 
-                for k in xrange(len(_trn) / fBatch):
+                for k in xrange(len(_trn) / self.mBatchSize):
 
                     # print self.mEpsilon, self.mMomentum
                     
                     # Inputs and labels batch
-                    _in  = self.build_batch(fBatch, k, _trn)
+                    _in  = self.build_batch(k, _trn)
 
                     # Activation propagation
                     _out = self.dropout_propagation(_in)
@@ -144,19 +163,24 @@ class AUTOENCODERS(NEURAL_NETWORK):
                     _err = self.compute_layer_error(_out, _in)
         
                     # Gradient for stochastic gradient descent    
-                    _wGrad,_bGrad = self.gradient(fBatch, _err, _out)
+                    _wGrad, _bGrad = self.gradient(_err, _out)
                     
                     # Gradient checking
                     # print "Gradient checking ..."
-                    # self.gradient_checking(_in, _in, _wGrad,
-                    #                        _bGrad, fBatch)
+                    # self.gradient_checking(_in,_in,_wGrad,_bGrad)
 
                     # Adapt learning rate
-                    if i > 0 or j > 0 or k > 0:
-                        self.angle_driven_approach(_wGrad)
+                    # if i > 0 or j > 0 or k > 0:
+                    #     self.angle_driven_approach(_wGrad)
+
+                    # Weight variations
+                    self.variations(_wGrad)
                     
                     # Update weights and biases
-                    self.update(_wGrad, _bGrad)
+                    self.update(_bGrad)
+
+                    # Adapt learning rate
+                    self.average_gradient_approach(_wGrad)
                     
                 # Evaluate the network    
                 _gcost[i] += self.evaluate(_tst)
@@ -172,8 +196,8 @@ class AUTOENCODERS(NEURAL_NETWORK):
             # Parameters
             print "Epsilon {0} Momentum {1}\n".format(self.mEpsilon,
                                                       self.mMomentum)
-            
-            # Learning rate update
+
+            # Stop condition
             if(i > 0):
                 if(abs(_gcost[i-1] - _gcost[i]) < 0.001):
                     _done = i + 1
