@@ -71,7 +71,7 @@ class AUTOENCODERS(NEURAL_NETWORK):
         # Average activation of layers' neurons
         _avg = fOut.mean(1, keepdims=True)
 
-        return self.mBeta * (-self.mSparsity /_avg + (1. -self.mSparsity) / (1. - _avg))
+        return self.mSparsityWeight * (-self.mSparsity /_avg + (1. -self.mSparsity) / (1. - _avg))
 
 #####################################################################
     
@@ -215,10 +215,10 @@ class AUTOENCODERS(NEURAL_NETWORK):
                     _in  = self.build_batch(k, _trn)
 
                     # Activation propagation
-                    _out = self.propagation(_in)
+                    _out = self.dropout_propagation(_in)
 
                     # Local error for each layer
-                    _err = self.layer_error_sparsity(_out, _in)
+                    _err = self.layer_error(_out, _in)
         
                     # Gradient for stochastic gradient descent    
                     _wGrad, _bGrad = self.gradient(_err, _out)
@@ -238,7 +238,7 @@ class AUTOENCODERS(NEURAL_NETWORK):
                     self.update(_bGrad)
 
                     # Adapt learning rate
-                    self.average_gradient_approach(_wGrad)
+                    # self.average_gradient_approach(_wGrad)
                     
                 # Evaluate the network    
                 _gcost[i] += self.evaluate(_tst)
@@ -261,8 +261,8 @@ class AUTOENCODERS(NEURAL_NETWORK):
                     _done = i + 1
                     break
 
-        self.plot(xrange(_done), _gcost, fName, "_cost.png")
-        self.plot(xrange(_done), _gtime, fName, "_time.png")
+        dy.plot(xrange(_done), _gcost, fName, "_cost.png")
+        dy.plot(xrange(_done), _gtime, fName, "_time.png")
 
         if fName is not None:
             self.save_output(fName, "train", fImgs)
@@ -304,7 +304,7 @@ class AUTOENCODERS(NEURAL_NETWORK):
             self.save_output(fName, "test", fImgs)
 
         # Displaying the results
-        dy.display(fName, "out", [fImgs, _out[-1].T])
+        dy.display(fName, "out", fImgs, _out[-1].T)
 
         # Approximated vision of first hidden layer neurons
-        dy.display(fName, "neurons", [self.neurons_vision()], 5, 5)
+        dy.display(fName, "neurons", self.neurons_vision())

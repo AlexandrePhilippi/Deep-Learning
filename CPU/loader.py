@@ -8,6 +8,9 @@ import struct
 
 from array import array
 
+# Global parameters
+DATAPATH = "../datasets/"
+
 #####################################################################
 # MNIST database
 #####################################################################
@@ -137,7 +140,7 @@ def subpicture(fSrc, fNbPatches, fSize, fPatchSize):
 
 def load_datasets(fName, fType):
 
-    _path = "../datasets/{0}".format(fName)        
+    _path = "{0}{1}".format(DATAPATH, fName)        
     
     if fName == "mnist":
         if fType == "train": return mnist_train(_path)

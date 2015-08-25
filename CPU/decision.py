@@ -88,9 +88,9 @@ class DECISION(AUTOENCODERS):
                     _done = i + 1
                     break
 
-        self.plot(xrange(_done), _gcost, fName, "_cost.png")
-        self.plot(xrange(_done), _gperf, fName, "_perf.png")
-        self.plot(xrange(_done), _gtime, fName, "_time.png")
+        dy.plot(xrange(_done), _gcost, fName, "_cost.png")
+        dy.plot(xrange(_done), _gperf, fName, "_perf.png")
+        dy.plot(xrange(_done), _gtime, fName, "_time.png")
 
 #####################################################################
 

@@ -4,6 +4,13 @@ import numpy             as np
 import scipy.special     as ss
 import matplotlib.pyplot as plt
 
+# Global parameters
+NO_FLAT_SPOT = 0.0001
+
+DATAPATH     = "../datasets/"
+STATEPATH    = "../states/"
+
+# Neural network main class
 class NEURAL_NETWORK(object):
 
     def __init__(self, fNbLayers, fNeurons, fBatchSize):
@@ -18,18 +25,20 @@ class NEURAL_NETWORK(object):
         self.mBatchSize      = fBatchSize
 
         # Regularization terms
-        self.mRegu           = 0.001
+        self.mRegu           = 0.
         
         # Learning rate
         self.mEpsilon        = [0.01] * 2
         self.mLeakControl    = 0.2
+        self.mAlpha          = 0.01
+        self.mBeta           = 0.1
 
         # Sparsity
-        self.mBeta           = 3.0
+        self.mSparsityWeight = 3.0
         self.mSparsity       = 0.05
 
         # Momentum
-        self.mMomentum       = [0.5] * 2
+        self.mMomentum       = [0.] * 2
         self.mLambda         = 0.2
 
         # Dropout scaling
@@ -134,26 +143,6 @@ class NEURAL_NETWORK(object):
         return _sets
     
 #####################################################################
-
-    def plot(self, fAbs, fOrd, fName, fType):
-        '''With a name given it saves the plot, without it just
-        prints the plot.
-
-        fType correspond to a specification for the file saved
-
-        INPUT  : Abscissas, ordinates, name (not necessary), type
-        OUTPUT : Nothing'''
-        
-        plt.plot(fAbs, fOrd)
-
-        if fName is not None:
-            plt.savefig("../img/" + fName + fType)
-        else:
-            plt.show()
-
-        plt.close()
-
-#####################################################################
         
     def neurons_vision(self):
         '''Compute an approximation of the neuron vision from the 
@@ -237,7 +226,7 @@ class NEURAL_NETWORK(object):
         INPUT  : A single value, vector, matrix
         OUTPUT : Sigmoid-value of the given input'''
 
-        return self.sigmoid_exp(fX, 0.001)
+        return self.sigmoid_exp(fX, NO_FLAT_SPOT)
 
 #####################################################################
 
@@ -248,7 +237,7 @@ class NEURAL_NETWORK(object):
         INPUT  : Sigmoid output, small coefficient
         OUTPUT : The derived value''' 
 
-        return self.dsigmoid_exp(fX, 0.001)
+        return self.dsigmoid_exp(fX, NO_FLAT_SPOT)
     
 #####################################################################
 # COST PROPAGATION    
@@ -257,7 +246,7 @@ class NEURAL_NETWORK(object):
     def error(self, fOut, fIn):
         '''Compute the error term for a given input (mini-batch).
 
-        INPUT  : Output, input
+        INPUT  : Outputs, inputs
         OUTPUT : Error'''
         
         return np.sum(np.square(fOut - fIn)) / 2.
@@ -301,7 +290,7 @@ class NEURAL_NETWORK(object):
         '''Dynamic learning rate based on average gradient approach
         from Yan LeCun - Efficient backprop.
 
-        INPUT  : Weight gradient
+        INPUT  : Weights gradient
         OUTPUT : Nothing
         
         Epsilon is modified in class'''
@@ -316,7 +305,7 @@ class NEURAL_NETWORK(object):
             aga._avg[i] *= (1 - self.mLeakControl)
             aga._avg[i] += self.mLeakControl * fWgrad[i]
 
-            self.mEpsilon[i] = self.mEpsilon[i] + 0.5 * self.mEpsilon[i] * (0.01 * np.linalg.norm(aga._avg[i]) - self.mEpsilon[i])
+            self.mEpsilon[i] = self.mEpsilon[i] + self.mAlpha * self.mEpsilon[i] * (self.mBeta * np.linalg.norm(aga._avg[i]) - self.mEpsilon[i])
         
     
 #####################################################################
@@ -324,32 +313,33 @@ class NEURAL_NETWORK(object):
 #####################################################################
 
     def save_state(self, fName):
-        '''Save weight and biases for backup and deep network
+        '''Save weights and biases for backup and deep network
         training.
 
-        INPUT  : Name for the txtfile created
+        INPUT  : Name of the textfile to be created
         OUTPUT : Nothing'''
         
         for i in np.arange(len(self.mWeights)):
-            _str = "../states/" + fName + "_W" + str(i) + ".txt"
+            _str = STATEPATH + fName + "_W" + str(i) + ".txt"
             np.savetxt(_str, self.mWeights[i])
 
         for i in np.arange(len(self.mBiases)):
-            _str = "../states/" + fName + "_B" + str(i) + ".txt"
+            _str = STATEPATH + fName + "_B" + str(i) + ".txt"
             np.savetxt(_str, self.mBiases[i])
 
 #####################################################################
 
     def load_state(self, fName):
         '''Load weights and biases for backup and deep network
-        training.
+        training. If a file doesn't exist it keeps the random 
+        initialization of the matrix (or vector)
 
-        INPUT  : Name of the txtfile to be loaded
+        INPUT  : Name of the textfile to be loaded
         OUTPUT : Nothing'''
 
         # Loading weights
         for i in xrange(len(self.mWeights)):
-            _str = "../states/" + fName + "_W" + str(i) + ".txt"
+            _str = STATEPATH + fName + "_W" + str(i) + ".txt"
             try:
                 self.mWeights[i] = np.loadtxt(_str)
             except IOError:
@@ -357,7 +347,7 @@ class NEURAL_NETWORK(object):
 
         # Loading biases
         for i in xrange(len(self.mBiases)):
-            _str = "../states/" + fName + "_B" + str(i) + ".txt"
+            _str = STATEPATH + fName + "_B" + str(i) + ".txt"
             try:
                 self.mBiases[i] = np.expand_dims(np.loadtxt(_str), 1)
             except IOError:
@@ -365,30 +355,35 @@ class NEURAL_NETWORK(object):
 
 #####################################################################
     
-    def save_output(self, fName, fType, fImgs):
+    def save_output(self, fName, fType, fSets):
         '''Save output from the first hidden layer in order to 
         create a new datasets for deep network pretraining.
 
         Name and type are used for filename.
 
-        INPUT  : Name, type, images
+        INPUT  : Name, type, datasets
         OUTPUT : Nothing.'''
         
-        _out = np.empty((len(fImgs),self.mNeurons[1]))
+        _out = np.empty((len(fSets),self.mNeurons[1]))
         
-        for i in xrange(len(fImgs)):
-            _out[[i],:] = self.propagation(fImgs[[i],:].T)[1].T
+        for i in xrange(len(fSets)):
+            _out[[i],:] = self.propagation(fSets[[i],:].T)[1].T
 
-        np.savetxt("../datasets/"+fName+"_"+fType+"sets.txt", _out)
+        np.savetxt(DATAPATH + fName + "_" + fType + "sets.txt", _out)
 
 #####################################################################
 # VERIFICATIONS
 #####################################################################
     
     def numerical_gradient(self, fInput, fRef):
-        '''Numerical gradient to check results from backpropagation.
+        '''Numerical gradient for backpropagation gradient 
+        approximation checking.
 
-        INPUT  : Input, References (labels or input)
+        References can be labels in classification problems or 
+        input in auto-encoders case. The distinction is made for
+        code factorisation.
+
+        INPUT  : Inputs, References
         OUTPUT : Numerical gradient'''
         
         _epsilon  = 0.00001
@@ -449,7 +444,11 @@ class NEURAL_NETWORK(object):
         '''Error between numerical gradient and approximation from
         backpropagation. Should be near to 10^-8.
 
-        INPUT  : Input, reference, weights and biases gradient
+        References can be labels in classification problems or 
+        input in auto-encoders case. The distinction is made for
+        code factorisation.
+
+        INPUT  : Inputs, references, weights and biases gradient
         OUTPUT : Nothing (prints the error)'''
         
         self.mBeta = 0.
@@ -476,8 +475,12 @@ class NEURAL_NETWORK(object):
         '''One part of the training algorithm to avoid 
         code repetition.
 
-        INPUT  : Input, reference (labels or inputs)
-        OUTPUT : Output and cost'''
+        References can be labels in classification problems or 
+        input in auto-encoders case. The distinction is made for
+        code factorisation.
+
+        INPUT  : Inputs, references
+        OUTPUT : Outputs and cost'''
         
         # All the output generated according to the batch
         _out  = self.propagation(fIn)
