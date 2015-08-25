@@ -1,13 +1,15 @@
 import autoencoders as ac
+import warnings     as wn
 import decision     as dc
-import loader       as ld
 import display      as dy
+import loader       as ld
 import numpy        as np
 
 import sys, getopt
     
 def main(argv):
 
+    wn.filterwarnings('error')
     np.set_printoptions(precision=3, threshold='nan')
     
     # Parameters initialization

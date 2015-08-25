@@ -1,11 +1,12 @@
 from neural_network import NEURAL_NETWORK
 
 import sys
-import time    as tm
-import math    as mt
-import numpy   as np
-import loader  as ld
-import display as dy
+import time     as tm
+import math     as mt
+import numpy    as np
+import loader   as ld
+import display  as dy
+import warnings as wn
 
 class AUTOENCODERS(NEURAL_NETWORK):
     
@@ -16,6 +17,25 @@ class AUTOENCODERS(NEURAL_NETWORK):
                                 len(fNeurons),
                                 fNeurons,
                                 fBatchSize)
+
+        # Regularization terms
+        self.mRegu           = 0.
+        
+        # Dynamic learning rate
+        self.mLeakControl    = 0.4
+        self.mAlpha          = 0.01
+        self.mBeta           = 0.1
+
+        # Sparsity
+        self.mSparsityWeight = 3.0
+        self.mSparsity       = 0.05
+
+        # Momentum
+        self.mMomentum       = [0.1] * (self.mNbLayers-1)
+        self.mLambda         = 0.
+
+        # Dropout scaling
+        self.mDropoutScaling = 0.5
 
 #####################################################################
 
@@ -71,7 +91,15 @@ class AUTOENCODERS(NEURAL_NETWORK):
         # Average activation of layers' neurons
         _avg = fOut.mean(1, keepdims=True)
 
-        return self.mSparsityWeight * (-self.mSparsity /_avg + (1. -self.mSparsity) / (1. - _avg))
+        try:
+            _sparsity = self.mSparsityWeight * (-self.mSparsity /_avg + (1. -self.mSparsity) / (1. - _avg))
+
+        except Warning:
+            print sys.exc_info()[1]
+            np.savetxt("log/error_avg.log", _avg)
+            sys.exit(-1)
+        
+        return _sparsity 
 
 #####################################################################
     
@@ -83,20 +111,33 @@ class AUTOENCODERS(NEURAL_NETWORK):
         INPUT  : Output of each layer, mini-batch
         OUTPUT : Error vector of each layer'''
 
-        
         # Last layer local error
-        _err = [-(fIn - fOut[-1]) * self.dsigmoid(fOut[-1])]
+        try:
+            _err = [-(fIn - fOut[-1]) * self.dsigmoid(fOut[-1])]
+
+        except Warning:
+            print sys.exc_info()[1]
+            np.savetxt("log/error_dsig.log", self.dsigmoid(fOut[-1]))
+            np.savetxt("log/error_diff.log", (fIn - fOut[-1]))
+            sys.exit(-1)
 
         # Intermediate layer local error
         for i in xrange(1, self.mNbLayers-1):
 
-            _backprop  = np.dot(self.mWeights[-i].T, _err[i-1])
+            try:
+                _backprop  = np.dot(self.mWeights[-i].T, _err[i-1])
+                
+                _dsigmoid  = self.dsigmoid(fOut[-i-1])
+                
+                _sparsity  = self.sparsity(fOut[-i-1])
 
-            _dsigmoid  = self.dsigmoid(fOut[-i-1])
+                _err.append((_backprop + _sparsity) * _dsigmoid)
 
-            _sparsity  = self.sparsity(fOut[-i-1])
-
-            _err.append((_backprop + _sparsity) * _dsigmoid)
+            except Warning:
+                print sys.exc_info()[1]
+                np.savetxt("log/error_backprop.log", _backprop)
+                np.savetxt("log/error_dsigm.log", _dsigmoid)
+                np.savetxt("log/error_sparsity.log", _sparsity)
 
         _err.reverse()
 
@@ -156,9 +197,105 @@ class AUTOENCODERS(NEURAL_NETWORK):
         OUTPUT : Nothing (variations are class variables)'''
         
         for i in xrange(self.mNbLayers-1):
-            self.mVariations[i] *= self.mMomentum[i]
-            self.mVariations[i] -= self.mEpsilon[i] * fWgrad[i]
-            self.mVariations[i] -= self.mRegu * self.mWeights[i]
+            try:
+                self.mVariations[i] *= self.mMomentum[i]
+                self.mVariations[i] -= self.mEpsilon[i] * fWgrad[i]
+                self.mVariations[i] -= self.mRegu * self.mWeights[i]
+
+            except Warning:
+                print sys.exc_info()[1]
+
+                print "Layer :", i
+                print "Momentum :", self.mMomentum[i]
+                print "Learning rate :", self.mEpsilon[i]
+
+                np.savetxt("log/error_Weight.log", self.mWeights[i])
+                np.savetxt("log/error_Grad.log", fWgrad[i])
+                
+                sys.exit(-1)
+
+#####################################################################
+
+    def angle_driven_approach(self, fWgrad):
+        '''Dynamic learning rate based on angle driven approach.
+        Teta correspond to the angle between the previous variation
+        and the current gradient.
+
+        From L.W. Chan - An adaptive training algorithm for back...
+
+        INPUT  : Weight gradient (variation is class variable)
+        OUTPUT : Nothing 
+
+        Epsilon and momentum are modified in class'''
+        
+        for i in xrange(self.mNbLayers - 1):
+
+            _var  = self.mVariations[i]
+            _grad = fWgrad[i]
+        
+            # Angle between previous update and current gradient
+            try:
+                _teta  = np.sum(-_grad * _var)
+                _teta /= np.linalg.norm(_grad)
+                _teta /= np.linalg.norm(_var)
+
+            except Warning:
+                print sys.exc_info()[1]
+
+                print "Gradient norm :", np.linalg.norm(_grad)
+                np.savetxt("log/error_grad.log", _grad)
+
+                print "Variation norm :", np.linalg.norm(_var)
+                np.savetxt("log/error_var.log", _var)
+
+                sys.exit(-1)                
+                
+        
+            # Learning rate update
+            self.mEpsilon[i] *= (1 + 0.5 * _teta)
+
+            # Momentum update
+            try:
+                self.mMomentum[i]  = self.mLambda * self.mEpsilon[i]
+                self.mMomentum[i] *= np.linalg.norm(_grad)
+                self.mMomentum[i] /= np.linalg.norm(_var)
+
+            except Warning:
+                print sys.exc_info()[1]
+
+                print "Momentum :", self.mMomentum
+                print "Learning Rate :", self.mEpsilon
+
+                print "Gradient norm :", np.linalg.norm(_grad)
+                np.savetxt("log/error_grad.log", _grad)
+                
+                print "Variation norm :", np.linalg.norm(_var)
+                np.savetxt("log/error_var.log", _var)
+
+                sys.exit(-1)
+
+#####################################################################
+
+    def average_gradient_approach(self, fWgrad):
+        '''Dynamic learning rate based on average gradient approach
+        from Yan LeCun - Efficient backprop.
+
+        INPUT  : Weights gradient
+        OUTPUT : Nothing
+        
+        Epsilon is modified in class'''
+
+        aga = self.average_gradient_approach.__func__
+        if not hasattr(aga, "_avg"):
+            aga._avg = [np.zeros(self.mWeights[i].shape)
+                        for i in xrange(self.mNbLayers - 1)]
+
+        for i in xrange(self.mNbLayers - 1):
+
+            aga._avg[i] *= (1 - self.mLeakControl)
+            aga._avg[i] += self.mLeakControl * fWgrad[i]
+
+            self.mEpsilon[i] += self.mAlpha * self.mEpsilon[i] * (self.mBeta * np.linalg.norm(aga._avg[i]) - self.mEpsilon[i])
             
 #####################################################################
     
@@ -189,10 +326,10 @@ class AUTOENCODERS(NEURAL_NETWORK):
                  number of iterations before stopping, name for save
         OUTPUT : Nothing'''
 
+        fImgs = ld.normalization(fName, fImgs)
+
         print "Training...\n"
-
-        # fImgs = ld.normalization(fImgs)
-
+        
         _gcost = []
         _gtime = []
         
@@ -209,7 +346,7 @@ class AUTOENCODERS(NEURAL_NETWORK):
 
                 for k in xrange(len(_trn) / self.mBatchSize):
 
-                    # print self.mEpsilon, self.mMomentum
+                    print self.mEpsilon, self.mMomentum
                     
                     # Inputs and labels batch
                     _in  = self.build_batch(k, _trn)
@@ -218,7 +355,7 @@ class AUTOENCODERS(NEURAL_NETWORK):
                     _out = self.dropout_propagation(_in)
 
                     # Local error for each layer
-                    _err = self.layer_error(_out, _in)
+                    _err = self.layer_error_sparsity(_out, _in)
         
                     # Gradient for stochastic gradient descent    
                     _wGrad, _bGrad = self.gradient(_err, _out)
@@ -228,8 +365,8 @@ class AUTOENCODERS(NEURAL_NETWORK):
                     # self.gradient_checking(_in,_in,_wGrad,_bGrad)
 
                     # Adapt learning rate
-                    # if i > 0 or j > 0 or k > 0:
-                    #     self.angle_driven_approach(_wGrad)
+                    if i > 0 or j > 0 or k > 0:
+                        self.angle_driven_approach(_wGrad)
 
                     # Weight variations
                     self.variations(_wGrad)

@@ -2,6 +2,7 @@ import numpy     as np
 import scipy.io  as sio
 import random    as rd
 import cPickle   as cp
+import display   as dy
 
 import os
 import struct
@@ -157,10 +158,18 @@ def load_datasets(fName, fType):
 #####################################################################
 
 # Not finished
-def normalization(fSets):
+def normalization(fName, fSets):
+
+    print "Data preprocessing...\n"
+
+    dy.display(fName,
+               "input",
+               fSets)
+    
+    _sets = fSets
 
     # Mean subtraction
-    _shifted = fSets - np.mean(fSets, 0)
+    _shifted = _sets - np.mean(_sets, 0)
 
     # Covariance
     _cov = np.dot(_shifted.T, _shifted) / _shifted.shape[0]
@@ -174,4 +183,12 @@ def normalization(fSets):
     # Whitening
     _whitened = _decorrelated / np.sqrt(_S + 1e-2)
 
-    return _whitened
+    dy.display(fName,
+               "decorrelated",
+               np.dot(_decorrelated, _U.T))
+
+    dy.display(fName,
+               "whitened",
+               np.dot(_whitened, _U.T))
+
+    return np.dot(_whitened, _U.T)

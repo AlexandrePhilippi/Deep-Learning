@@ -1,11 +1,14 @@
 import math              as mt
 import time              as tm
 import numpy             as np
+import warnings          as wn
 import scipy.special     as ss
 import matplotlib.pyplot as plt
 
+import sys
+
 # Global parameters
-NO_FLAT_SPOT = 0.0001
+NO_FLAT_SPOT = 0.01
 
 DATAPATH     = "../datasets/"
 STATEPATH    = "../states/"
@@ -23,26 +26,9 @@ class NEURAL_NETWORK(object):
 
         # Batch size
         self.mBatchSize      = fBatchSize
-
-        # Regularization terms
-        self.mRegu           = 0.
         
         # Learning rate
-        self.mEpsilon        = [0.01] * 2
-        self.mLeakControl    = 0.2
-        self.mAlpha          = 0.01
-        self.mBeta           = 0.1
-
-        # Sparsity
-        self.mSparsityWeight = 3.0
-        self.mSparsity       = 0.05
-
-        # Momentum
-        self.mMomentum       = [0.] * 2
-        self.mLambda         = 0.2
-
-        # Dropout scaling
-        self.mDropoutScaling = 0.5
+        self.mEpsilon        = [0.01] * (fNbLayers-1)
 
         # Cross-validation, batch building
         self.mCycle = 6
@@ -180,8 +166,16 @@ class NEURAL_NETWORK(object):
 
         INPUT  : A single value, vector, matrix and small coefficient
         OUTPUT : Sigmoid-value of the given input'''
+
+        try:
+            _sigmoid = ss.expit(fX) + fA * fX
+
+        except Warning:
+            print sys.exc_info()[1]
+            np.savetxt("log/error_sigexp.log", fX)
+            sys.exit(-1)
         
-        return ss.expit(fX) + fA * fX
+        return _sigmoid
 
 #####################################################################
     
@@ -191,8 +185,16 @@ class NEURAL_NETWORK(object):
 
         INPUT  : Sigmoid output and small coefficient
         OUTPUT : The derived value''' 
-            
-        return fA + fX * (1 - fX)
+
+        try:
+            _dsigmoid = fA + fX * (1 - fX)
+
+        except Warning:
+            print sys.exc_info()[1]
+            np.savetxt("log/error_dsigexp.log", fX)
+            sys.exit(-1)
+        
+        return _dsigmoid
 
 #####################################################################
 
@@ -203,7 +205,15 @@ class NEURAL_NETWORK(object):
         INPUT  : A single value, vector, matrix and small coefficient
         OUTPUT : Sigmoid-value of the given input'''
 
-        return 1.7159 * np.tanh(2. * fX / 3.) + fA * fX
+        try:
+            _sigmoid = 1.7159 * np.tanh(2. * fX / 3.) + fA * fX
+
+        except Warning:
+            print sys.exc_info()[1]
+            np.savetxt("log/error_sigtanh.log", fX)
+            sys.exit(-1)
+
+        return _sigmoid 
 
 #####################################################################
 
@@ -212,9 +222,17 @@ class NEURAL_NETWORK(object):
         derived formula : f'(x) = a + f(x)^2
 
         INPUT  : Sigmoid output, small coefficient
-        OUTPUT : The derived value''' 
+        OUTPUT : The derived value'''
+        
+        try:
+            _dsigmoid = fA + 1.7159 * 2./3. + 2./3. * fX**2
 
-        return fA + 1.7159 * 2./3. + 2./3. * fX**2
+        except Warning:
+            print sys.exc_info()[1]
+            np.savetxt("log/error_dsigtanh.log", fX)
+            sys.exit(-1)
+        
+        return _dsigmoid
 
 #####################################################################
 
@@ -225,8 +243,8 @@ class NEURAL_NETWORK(object):
 
         INPUT  : A single value, vector, matrix
         OUTPUT : Sigmoid-value of the given input'''
-
-        return self.sigmoid_exp(fX, NO_FLAT_SPOT)
+        
+        return self.sigmoid_tanh(fX, NO_FLAT_SPOT)
 
 #####################################################################
 
@@ -236,8 +254,8 @@ class NEURAL_NETWORK(object):
 
         INPUT  : Sigmoid output, small coefficient
         OUTPUT : The derived value''' 
-
-        return self.dsigmoid_exp(fX, NO_FLAT_SPOT)
+        
+        return self.dsigmoid_tanh(fX, NO_FLAT_SPOT)
     
 #####################################################################
 # COST PROPAGATION    
@@ -250,63 +268,6 @@ class NEURAL_NETWORK(object):
         OUTPUT : Error'''
         
         return np.sum(np.square(fOut - fIn)) / 2.
-
-#####################################################################
-# ADAPTIVE LEARNING RATE
-#####################################################################
-
-    def angle_driven_approach(self, fWgrad):
-        '''Dynamic learning rate based on angle driven approach.
-        Teta correspond to the angle between the previous variation
-        and the current gradient.
-
-        From L.W. Chan - An adaptive training algorithm for back...
-
-        INPUT  : Weight gradient (variation is class variable)
-        OUTPUT : Nothing 
-
-        Epsilon and momentum are modified in class'''
-        
-        for i in xrange(self.mNbLayers - 1):
-
-            _var  = self.mVariations[i]
-            _grad = fWgrad[i]
-        
-            # Angle between previous update and current gradient
-            _teta  = np.sum(-_grad * _var)
-            _teta /= (np.linalg.norm(_grad) * np.linalg.norm(_var))
-        
-            # Learning rate update
-            self.mEpsilon[i] *= (1 + 0.5 * _teta)
-
-            # Momentum update
-            self.mMomentum[i]  = self.mLambda * self.mEpsilon[i]
-            self.mMomentum[i] *= np.linalg.norm(_grad)
-            self.mMomentum[i] /= np.linalg.norm(_var)
-
-#####################################################################
-
-    def average_gradient_approach(self, fWgrad):
-        '''Dynamic learning rate based on average gradient approach
-        from Yan LeCun - Efficient backprop.
-
-        INPUT  : Weights gradient
-        OUTPUT : Nothing
-        
-        Epsilon is modified in class'''
-
-        aga = self.average_gradient_approach.__func__
-        if not hasattr(aga, "_avg"):
-            aga._avg = [np.zeros(self.mWeights[i].shape)
-                        for i in xrange(self.mNbLayers - 1)]
-
-        for i in xrange(self.mNbLayers - 1):
-
-            aga._avg[i] *= (1 - self.mLeakControl)
-            aga._avg[i] += self.mLeakControl * fWgrad[i]
-
-            self.mEpsilon[i] = self.mEpsilon[i] + self.mAlpha * self.mEpsilon[i] * (self.mBeta * np.linalg.norm(aga._avg[i]) - self.mEpsilon[i])
-        
     
 #####################################################################
 # BACKUP

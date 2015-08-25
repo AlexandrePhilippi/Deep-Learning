@@ -17,7 +17,7 @@ def display(fName, fType, *fSrc):
         print "These images are not squares.\n"; return
 
     else:
-        _size = [mt.sqrt(_length)] * 2
+        _size = [int(mt.sqrt(_length))] * 2
 
     # Limit of 400 images printed at the same time
     if int(mt.sqrt(_nbImgs)) > 20:
