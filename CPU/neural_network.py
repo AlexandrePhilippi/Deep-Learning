@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import sys
 
 # Global parameters
-NO_FLAT_SPOT = 0.01
+NO_FLAT_SPOT = 0.
 
 DATAPATH     = "../datasets/"
 STATEPATH    = "../states/"
@@ -206,7 +206,7 @@ class NEURAL_NETWORK(object):
         OUTPUT : Sigmoid-value of the given input'''
 
         try:
-            _sigmoid = 1.7159 * np.tanh(2. * fX / 3.) + fA * fX
+            _sigmoid = np.tanh(fX) + fA * fX
 
         except Warning:
             print sys.exc_info()[1]
@@ -219,13 +219,13 @@ class NEURAL_NETWORK(object):
 
     def dsigmoid_tanh(self, fX, fA):
         '''Compute the derived sigmoid function following the 
-        derived formula : f'(x) = a + f(x)^2
+        derived formula : f'(x) = a + (1 - f(x)^2)
 
         INPUT  : Sigmoid output, small coefficient
         OUTPUT : The derived value'''
         
         try:
-            _dsigmoid = fA + 1.7159 * 2./3. + 2./3. * fX**2
+            _dsigmoid = fA + (1 - fX**2)
 
         except Warning:
             print sys.exc_info()[1]
@@ -244,7 +244,7 @@ class NEURAL_NETWORK(object):
         INPUT  : A single value, vector, matrix
         OUTPUT : Sigmoid-value of the given input'''
         
-        return self.sigmoid_tanh(fX, NO_FLAT_SPOT)
+        return self.sigmoid_exp(fX, NO_FLAT_SPOT)
 
 #####################################################################
 
@@ -255,7 +255,7 @@ class NEURAL_NETWORK(object):
         INPUT  : Sigmoid output, small coefficient
         OUTPUT : The derived value''' 
         
-        return self.dsigmoid_tanh(fX, NO_FLAT_SPOT)
+        return self.dsigmoid_exp(fX, NO_FLAT_SPOT)
     
 #####################################################################
 # COST PROPAGATION    

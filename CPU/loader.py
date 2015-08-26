@@ -180,13 +180,17 @@ def normalization(fName, fSets):
     # Decorrelation
     _decorrelated = np.dot(_shifted, _U)
 
-    # Whitening
-    _whitened = _decorrelated / np.sqrt(_S + 1e-2)
-
+    del(_shifted)
+    
     dy.display(fName,
                "decorrelated",
                np.dot(_decorrelated, _U.T))
+    
+    # Whitening
+    _whitened = _decorrelated / np.sqrt(_S + 1e-2)
 
+    del(_decorrelated)
+    
     dy.display(fName,
                "whitened",
                np.dot(_whitened, _U.T))
