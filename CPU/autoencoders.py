@@ -3,10 +3,20 @@ from neural_network import NEURAL_NETWORK
 import sys
 import time     as tm
 import math     as mt
+import tools    as tl
 import numpy    as np
 import loader   as ld
 import display  as dy
 import warnings as wn
+
+# Global parameters
+DROPOUT       = False
+SPARSITY      = True
+PREPROCESSING = False
+ANGLE_DRIVEN  = True
+AVG_GRADIENT  = False
+GRAD_CHECK    = False
+DEBUG         = False
 
 class AUTOENCODERS(NEURAL_NETWORK):
     
@@ -27,55 +37,108 @@ class AUTOENCODERS(NEURAL_NETWORK):
         self.mBeta           = 0.1
 
         # Sparsity
-        self.mSparsityWeight = 3.0
+        self.mSparsityWeight = 1.0
         self.mSparsity       = 0.05
 
         # Momentum
-        self.mMomentum       = [0.] * (self.mNbLayers-1)
-        self.mLambda         = 0.2
+        self.mMomentum       = [0.1] * (self.mNbLayers-1)
+        self.mLambda         = 0.05
 
         # Dropout scaling
         self.mDropoutScaling = 0.5
 
+        # Activation function
+        self.activation_function_initialization()
+            
 #####################################################################
 
-    def dropout_propagation(self, fInput):
-        '''Propagation of the input (can be a minibatch) throughout
-        the neural network. A dropout system avoid the overfitting.
-        The dropout scaling parameters can be modified in neural 
-        network parameters.
+    def activation_function_initialization(self):
+        '''Define an activation function per neurons' layer 
+        and the corresponding derived function.'''
+        
+        for i in xrange(self.mNbLayers-2):
+            self.mActivation.append(tl.sigmoid)
+            self.mDerived.append(tl.dsigmoid)
 
-        INPUT : Vector or matrix
+        self.mActivation.append(tl.sigmoid_output)
+        self.mDerived.append(tl.dsigmoid_output)
+        
+#####################################################################
+
+    def propagation(self, fInput, fDropout=False):
+        '''Propagation of the input (can be a minibatch) throughout
+        turning fDropout argument to True. The dropout scaling 
+        the neural network. A dropout system can be activated by 
+        parameters can be modified in neural network parameters.
+
+        INPUT : Vector or matrix, dropout
         OUPUT : Neurons activation'''
         
         _out = [fInput]
-        _p   = self.mDropoutScaling
-        
-        for w,b in zip(self.mWeights, self.mBiases):
 
-            _activation  = self.sigmoid(np.dot(w, _out[-1]) + b)
-            _drop = (np.random.rand(*_activation.shape) < _p) / _p
-            _activation *= _drop
+        if fDropout:
+            _p = self.mDropoutScaling
+
+        for i in xrange(self.mNbLayers-1):
+
+            _activation  = np.dot(self.mWeights[i], _out[-1])
+            _activation += self.mBiases[i]
+            _activation  = self.mActivation[i](_activation)
+            
+            if fDropout:
+                _drop = (np.random.rand(*_activation.shape)<_p) / _p
+                _activation *= _drop
 
             _out.append(_activation)
 
         return _out
-        
+
 #####################################################################
+    
+    def layer_error(self, fOut, fIn, fSparsity=False):
+        '''Compute local error of each layer. Sparsity term can
+        be actived by turning fSparsity argument to True.
+        Part of backpropagation.
 
-    def propagation(self, fInput):
-        '''Propagation of the input (can be a minibatch) throughout
-        the neural network.
- 
-        INPUT : Vector or matrix
-        OUPUT : Neurons activation'''
+        INPUT  : Output of each layer, mini-batch, sparsity
+        OUTPUT : Error vector of each layer'''
 
-        _out = [fInput]
-        
-        for w,b in zip(self.mWeights, self.mBiases):
-            _out.append(self.sigmoid(np.dot(w, _out[-1]) + b))
+        # Last layer local error
+        try:
+            _err = [-(fIn - fOut[-1]) * self.mDerived[-1](fOut[-1])]
+            
+        except Warning:
+            print sys.exc_info()[1]
+            np.savetxt("log/error_dsig.log", self.mDerived(fOut[-1]))
+            np.savetxt("log/error_diff.log", (fIn - fOut[-1]))
+            sys.exit(-1)
 
-        return _out
+        # Intermediate layer local error
+        for i in xrange(1, self.mNbLayers-1):
+
+            try:
+                _backprop  = np.dot(self.mWeights[-i].T, _err[i-1])
+                
+                _dsigmoid  = self.mDerived[-i-1](fOut[-i-1])
+
+                if fSparsity:
+                    _sparsity = self.sparsity(fOut[-i-1])
+
+                else:
+                    _sparsity = np.zeros(_backprop.shape)
+
+                _err.append((_backprop + _sparsity) * _dsigmoid)
+
+            except Warning:
+                print sys.exc_info()[1]
+                np.savetxt("log/error_backprop.log", _backprop)
+                np.savetxt("log/error_dsigm.log", _dsigmoid)
+                np.savetxt("log/error_sparsity.log", _sparsity)
+                sys.exit(-1)
+
+        _err.reverse()
+
+        return _err
 
 #####################################################################
     
@@ -103,88 +166,6 @@ class AUTOENCODERS(NEURAL_NETWORK):
 
 #####################################################################
     
-    def layer_error_sparsity(self, fOut, fIn):
-        '''Compute local error of each layer with sparsity
-        term in order to get weights and biases gradients. 
-        Part of backpropagation.
-
-        INPUT  : Output of each layer, mini-batch
-        OUTPUT : Error vector of each layer'''
-
-        # Last layer local error
-        try:
-            _err = [-(fIn - fOut[-1]) * self.dsigmoid(fOut[-1])]
-
-        except Warning:
-            print sys.exc_info()[1]
-            np.savetxt("log/error_dsig.log", self.dsigmoid(fOut[-1]))
-            np.savetxt("log/error_diff.log", (fIn - fOut[-1]))
-            sys.exit(-1)
-
-        # Intermediate layer local error
-        for i in xrange(1, self.mNbLayers-1):
-
-            try:
-                _backprop  = np.dot(self.mWeights[-i].T, _err[i-1])
-                
-                _dsigmoid  = self.dsigmoid(fOut[-i-1])
-                
-                _sparsity  = self.sparsity(fOut[-i-1])
-
-                _err.append((_backprop + _sparsity) * _dsigmoid)
-
-            except Warning:
-                print sys.exc_info()[1]
-                np.savetxt("log/error_backprop.log", _backprop)
-                np.savetxt("log/error_dsigm.log", _dsigmoid)
-                np.savetxt("log/error_sparsity.log", _sparsity)
-
-        _err.reverse()
-
-        return _err
-    
-#####################################################################
-    
-    def layer_error(self, fOut, fIn):
-        '''Compute local error of each layer in order to get 
-        weights and biases gradients. Part of backpropagation.
-
-        INPUT  : Output of each layer, mini-batch
-        OUTPUT : Error vector of each layer'''
-
-        
-        # Last layer local error
-        try:
-            _err = [-(fIn - fOut[-1]) * self.dsigmoid(fOut[-1])]
-
-        except Warning:
-            print sys.exc_info()[1]
-            np.savetxt("log/error_dsig.log", self.dsigmoid(fOut[-1]))
-            np.savetxt("log/error_diff.log", (fIn - fOut[-1]))
-            sys.exit(-1)
-
-        # Intermediate layer local error
-        for i in xrange(1, self.mNbLayers-1):
-
-            try:
-                _backprop  = np.dot(self.mWeights[-i].T, _err[i-1])
-                
-                _dsigmoid  = self.dsigmoid(fOut[-i-1])
-                
-                _err.append(_backprop * _dsigmoid)
-                
-            except Warning:
-                print sys.exc_info()[1]
-                np.savetxt("log/error_backprop.log", _backprop)
-                np.savetxt("log/error_dsigm.log", _dsigmoid)
-                np.savetxt("log/error_sparsity.log", _sparsity)
-            
-        _err.reverse()
-
-        return _err
-
-#####################################################################
-
     def gradient(self, fErr, fOut):
         '''Compute weights and biases gradient in order to realize
         mini-batch (stochastic, online) gradient descent.
@@ -269,14 +250,14 @@ class AUTOENCODERS(NEURAL_NETWORK):
         
             # Learning rate update
             self.mEpsilon[i] *= (1 + 0.5 * _teta)
-            self.mEpsilon[i]  = max(min(self.mEpsilon[i],2),-2)
+            self.mEpsilon[i]  = max(min(self.mEpsilon[i],1),-1)
             
             # Momentum update
             try:
                 self.mMomentum[i]  = self.mLambda * self.mEpsilon[i]
                 self.mMomentum[i] *= np.linalg.norm(_grad)
                 self.mMomentum[i] /= np.linalg.norm(_var)
-                self.mMomentum[i]  = max(min(self.mMomentum[i],1),0)
+                self.mMomentum[i]  = max(min(self.mMomentum[i],1),-1)
                     
             except Warning:
                 print sys.exc_info()[1]
@@ -316,6 +297,8 @@ class AUTOENCODERS(NEURAL_NETWORK):
             aga._avg[i] += self.mLeakControl * fWgrad[i]
 
             self.mEpsilon[i] += self.mAlpha * self.mEpsilon[i] * (self.mBeta * np.linalg.norm(aga._avg[i]) - self.mEpsilon[i])
+
+            self.mEpsilon[i]  = max(min(self.mEpsilon[i],1),-1)
             
 #####################################################################
     
@@ -346,7 +329,8 @@ class AUTOENCODERS(NEURAL_NETWORK):
                  number of iterations before stopping, name for save
         OUTPUT : Nothing'''
 
-        fImgs = ld.normalization(fName, fImgs)
+        if PREPROCESSING:
+            fImgs, _key = ld.normalization(fName, fImgs)
 
         print "Training...\n"
         
@@ -366,26 +350,29 @@ class AUTOENCODERS(NEURAL_NETWORK):
 
                 for k in xrange(len(_trn) / self.mBatchSize):
 
-                    # print self.mEpsilon, self.mMomentum
+                    if DEBUG:
+                        print "Learning rates :", self.mEpsilon
+                        print "Momentums :", self.mMomentum
                     
                     # Inputs and labels batch
                     _in  = self.build_batch(k, _trn)
 
                     # Activation propagation
-                    _out = self.propagation(_in)
+                    _out = self.propagation(_in, DROPOUT)
 
                     # Local error for each layer
-                    _err = self.layer_error(_out, _in)
+                    _err = self.layer_error(_out, _in, SPARSITY)
         
                     # Gradient for stochastic gradient descent    
                     _wGrad, _bGrad = self.gradient(_err, _out)
                     
                     # Gradient checking
-                    # print "Gradient checking ..."
-                    # self.gradient_checking(_in,_in,_wGrad,_bGrad)
+                    if GRAD_CHECK:
+                        print "Gradient checking ..."
+                        self.gradient_checking(_in,_in,_wGrad,_bGrad)
 
                     # Adapt learning rate
-                    if i > 0 or j > 0 or k > 0:
+                    if (i > 0 or j > 0 or k > 0) and ANGLE_DRIVEN:
                         self.angle_driven_approach(_wGrad)
 
                     # Weight variations
@@ -395,10 +382,15 @@ class AUTOENCODERS(NEURAL_NETWORK):
                     self.update(_bGrad)
 
                     # Adapt learning rate
-                    # self.average_gradient_approach(_wGrad)
+                    if AVG_GRADIENT:
+                        self.average_gradient_approach(_wGrad)
                     
-                # Evaluate the network    
-                _gcost[i] += self.evaluate(_tst)
+                # Evaluate the network
+                _cost = self.evaluate(_tst)    
+                _gcost[i] += _cost
+
+                if DEBUG:
+                    print "Cost :", _cost
 
             # Iteration information
             _gtime[i] = tm.time() - _gtime[i]
@@ -411,13 +403,16 @@ class AUTOENCODERS(NEURAL_NETWORK):
             # Parameters
             print "Epsilon {0} Momentum {1}\n".format(self.mEpsilon,
                                                       self.mMomentum)
-
+            
             # Stop condition
-            # if(i > 0):
-            #     if(abs(_gcost[i-1] - _gcost[i]) < 0.001):
-            #         _done = i + 1
-            #         break
+            if i > 0 and abs(_gcost[i-1] - _gcost[i]) < 0.001:
+                _done = i + 1
+                break
 
+            elif self.mStop:
+                _done = i + 1
+                break
+            
         dy.plot(xrange(_done), _gcost, fName, "_cost.png")
         dy.plot(xrange(_done), _gtime, fName, "_time.png")
 
@@ -449,7 +444,8 @@ class AUTOENCODERS(NEURAL_NETWORK):
                  name for save.
         OUTPUT : Nothing'''
 
-        fImgs = ld.normalization(fName, fImgs)
+        if PREPROCESSING:
+            fImgs, _key = ld.normalization(fName, fImgs)
         
         print "Testing the neural networks..."
 
@@ -463,7 +459,12 @@ class AUTOENCODERS(NEURAL_NETWORK):
             self.save_output(fName, "test", fImgs)
 
         # Displaying the results
-        dy.display(fName, "out", fImgs, _out[-1].T)
+        if PREPROCESSING:
+            _decrypt = np.dot(_out[-1],_key.T)
+            dy.display(fName, "out", fImgs, _decrypt.T)
+
+        else:
+            dy.display(fName, "out", fImgs, _out[-1].T)
 
         # Approximated vision of first hidden layer neurons
         dy.display(fName, "neurons", self.neurons_vision())

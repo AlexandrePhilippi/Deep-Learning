@@ -3,14 +3,25 @@ import warnings     as wn
 import decision     as dc
 import display      as dy
 import loader       as ld
+import signal       as sg
 import numpy        as np
 
 import sys, getopt
-    
+
+#####################################################################
+
+# Quit properly and save results
+def kill_handler(signal, frame):
+    _nnet.mStop = True
+    print "Kill signal caught, saving everything before closing.\n"
+
+#####################################################################
+
 def main(argv):
 
     wn.filterwarnings('error')
     np.set_printoptions(precision=3, threshold='nan')
+    sg.signal(sg.SIGINT, kill_handler)
     
     # Parameters initialization
     _neurons     = [784, 25, 784]
@@ -54,6 +65,8 @@ def main(argv):
             _neurons = map(int, arg.split(','))
 
     # Creating the neural network
+    global _nnet        
+            
     if _neurons[0] == _neurons[-1]:
         _nnet = ac.AUTOENCODERS(_neurons, _batchSize)
     else:

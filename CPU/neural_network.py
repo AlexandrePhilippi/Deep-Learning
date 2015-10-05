@@ -1,15 +1,11 @@
 import math              as mt
 import time              as tm
 import numpy             as np
-import warnings          as wn
-import scipy.special     as ss
 import matplotlib.pyplot as plt
 
 import sys
 
 # Global parameters
-NO_FLAT_SPOT = 0.
-
 DATAPATH     = "../datasets/"
 STATEPATH    = "../states/"
 
@@ -18,6 +14,9 @@ class NEURAL_NETWORK(object):
 
     def __init__(self, fNbLayers, fNeurons, fBatchSize):
 
+        # Global parameters
+        self.mStop           = False
+        
         # Numbers of layers
         self.mNbLayers       = fNbLayers
 
@@ -28,8 +27,12 @@ class NEURAL_NETWORK(object):
         self.mBatchSize      = fBatchSize
         
         # Learning rate
-        self.mEpsilon        = [0.01] * (fNbLayers-1)
+        self.mEpsilon        = [0.001] * (fNbLayers-1)
 
+        # Activation functions for each layer and derived
+        self.mActivation     = []
+        self.mDerived        = []
+        
         # Cross-validation, batch building
         self.mCycle = 6
         self.mSlice = 10000
@@ -155,107 +158,6 @@ class NEURAL_NETWORK(object):
             _img[i,:] = _row
 
         return _img
-
-#####################################################################
-# LOGISTIC FUNCTION
-#####################################################################
-
-    def sigmoid_exp(self, fX, fA):
-        '''Compute the sigmoid function : 1 / (1 + e^(-x)) + ax
-        With a small linear coefficient to avoid flat spot.
-
-        INPUT  : A single value, vector, matrix and small coefficient
-        OUTPUT : Sigmoid-value of the given input'''
-
-        try:
-            _sigmoid = ss.expit(fX) + fA * fX
-
-        except Warning:
-            print sys.exc_info()[1]
-            np.savetxt("log/error_sigexp.log", fX)
-            sys.exit(-1)
-        
-        return _sigmoid
-
-#####################################################################
-    
-    def dsigmoid_exp(self, fX, fA):
-        '''Compute the derived sigmoid function following the 
-        derived formula : f'(x) = f(x) (1 - f(x)) + a.
-
-        INPUT  : Sigmoid output and small coefficient
-        OUTPUT : The derived value''' 
-
-        try:
-            _dsigmoid = fA + fX * (1 - fX)
-
-        except Warning:
-            print sys.exc_info()[1]
-            np.savetxt("log/error_dsigexp.log", fX)
-            sys.exit(-1)
-        
-        return _dsigmoid
-
-#####################################################################
-
-    def sigmoid_tanh(self, fX, fA):
-        '''Compute the sigmoid function : 1.7159*tanh(2/3 * x) + ax
-        With a small linear coefficient to avoid flat spot.
-
-        INPUT  : A single value, vector, matrix and small coefficient
-        OUTPUT : Sigmoid-value of the given input'''
-
-        try:
-            _sigmoid = np.tanh(fX) + fA * fX
-
-        except Warning:
-            print sys.exc_info()[1]
-            np.savetxt("log/error_sigtanh.log", fX)
-            sys.exit(-1)
-
-        return _sigmoid 
-
-#####################################################################
-
-    def dsigmoid_tanh(self, fX, fA):
-        '''Compute the derived sigmoid function following the 
-        derived formula : f'(x) = a + (1 - f(x)^2)
-
-        INPUT  : Sigmoid output, small coefficient
-        OUTPUT : The derived value'''
-        
-        try:
-            _dsigmoid = fA + (1 - fX**2)
-
-        except Warning:
-            print sys.exc_info()[1]
-            np.savetxt("log/error_dsigtanh.log", fX)
-            sys.exit(-1)
-        
-        return _dsigmoid
-
-#####################################################################
-
-    def sigmoid(self, fX):
-        '''Compute a sigmoid function with a small linear 
-        from developers implementation (see neural_network.py)
-        coefficient to avoid flat spot. Sigmoid function depend
-
-        INPUT  : A single value, vector, matrix
-        OUTPUT : Sigmoid-value of the given input'''
-        
-        return self.sigmoid_exp(fX, NO_FLAT_SPOT)
-
-#####################################################################
-
-    def dsigmoid(self, fX):
-        '''Compute a derived sigmoid function. The derived formula
-        depend from developers implementation (see neural_network.py)
-
-        INPUT  : Sigmoid output, small coefficient
-        OUTPUT : The derived value''' 
-        
-        return self.dsigmoid_exp(fX, NO_FLAT_SPOT)
     
 #####################################################################
 # COST PROPAGATION    

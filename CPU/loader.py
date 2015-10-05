@@ -195,4 +195,4 @@ def normalization(fName, fSets):
                "whitened",
                np.dot(_whitened, _U.T))
 
-    return np.dot(_whitened, _U.T)
+    return _whitened, _U
