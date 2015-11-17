@@ -25,7 +25,7 @@ def display(fName, fType, *fSrc):
 
     else:
         _nbImgsR = _nbImgsC = int(mt.sqrt(_nbImgs))
-        
+
     # Number of columns multiple of number of sources
     if _nbImgsC % len(fSrc) != 0:
         _nbImgsC += _nbImgsC % len(fSrc)
@@ -34,7 +34,7 @@ def display(fName, fType, *fSrc):
     _firstRow = True
     _pool     = [-1]
     _id       = -1
-    
+
     for i in xrange(_nbImgsR):
 
         _firstCell = True
@@ -62,39 +62,18 @@ def display(fName, fType, *fSrc):
         if _firstRow:
             _firstRow = False
             _vl = _hl
-                
+
         else:
             _vl = np.vstack((_vl, _hl))
-                
+
         if i < _nbImgsR - 1:
             _vl = np.vstack((_vl, np.zeros(len(_vl[0]))))
 
     plt.imshow(_vl, cmap=cm.Greys_r)
-        
+
     if fName is not None and fType is not None:
-        plt.savefig("../img/" + fName + "_" + fType + ".png")
+        plt.savefig(IMGPATH + fName + "_" + fType + ".png")
     else:
         plt.show()
 
-    plt.close()
-
-######################################################################
-    
-def plot(fAbs, fOrd, fName, fType):
-    '''With a name given it saves the plot, without it just
-    prints the plot.
-    
-    fType correspond to a specification for the file saved (output, 
-    neurons visions etc.)
-    
-    INPUT  : Abscissas, ordinates, name and type (both not necessary)
-    OUTPUT : Nothing'''
-    
-    plt.plot(fAbs, fOrd)
-    
-    if fName is not None:
-        plt.savefig(IMGPATH + fName + fType)
-    else:
-        plt.show()
-        
     plt.close()
