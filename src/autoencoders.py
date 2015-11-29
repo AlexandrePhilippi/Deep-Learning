@@ -24,7 +24,7 @@ class Autoencoders(object):
 
         # Momentum
         self.mMomentum = np.ones(self.mNbLayers - 1) * fMomentum
-        
+
         # Sparisty parameters
         self.mSparsityTarget      = fSparsityTarget
         self.mSparsityCoefficient = fSparsityCoefficient
@@ -94,13 +94,13 @@ class Autoencoders(object):
 
 ########################################################################
 
-    def partial_derivatives(self, fErr, fOut, fBatchSize):
+    def partial_derivatives(self, fErr, fOut, fBatchsize):
 
         _dWeights = []
         _dBiases  = []
 
         for i in xrange(self.mNbLayers - 1):
-            _dWeights.append(np.dot(fErr[i], fOut[i].transpose()) / fBatchSize)
+            _dWeights.append(np.dot(fErr[i], fOut[i].transpose()) / fBatchsize)
             _dBiases.append(fErr[i].mean(1, keepdims=True))
 
         return _dWeights, _dBiases
@@ -110,19 +110,37 @@ class Autoencoders(object):
     def update(self, fDWeights, fDBiases):
         
         for i in xrange(self.mNbLayers - 1):
-            self.mVariations[i] = self.mMomentum[i] * self.mVariations[i] - self.mLearningRate[i] * fDWeights[i]
+
+            self.mVariations[i] *= self.mMomentum[i]
+            self.mVariations[i] -= self.mLearningRate[i] * fDWeights[i]
+
             self.mWeights[i] += self.mVariations[i]
             self.mBiases[i]  -= self.mLearningRate[i] * fDBiases[i]
 
 ########################################################################
+    
+    def error(self, fOut, fIn, fBatchsize):
 
-    def error(self, fOut, fIn, fBatchSize):
-
-        return np.sum(np.square(fOut - fIn)) / (2 * fBatchSize)
+        return np.sum(np.square(fOut - fIn)) / (2 * fBatchsize)
 
 ########################################################################
+    
+    def angle_driven_approach(self, fDWeights):
 
-    def train(self, fEpochs, fData, fBatchSize):
+        for i in xrange(self.mNbLayers - 1):
+
+            # Angle between vector of previous direction update and current direction update
+            _teta = np.sum(-self.mVariations[i] * fDWeights[i]) / (np.linalg.norm(fDWeights[i]) * np.linalg.norm(self.mVariations[i]))
+
+            # Learning rate update
+            self.mLearningRate[i] *= (1 + 0.5 * _teta)
+
+            # Momentum coefficient update
+            self.mMomentum[i] = 0.5 * self.mLearningRate[i] * np.linalg.norm(fDWeights[i]) / np.linalg.norm(self.mVariations[i])
+    
+########################################################################
+
+    def train(self, fEpochs, fData, fBatchsize):
 
         print "Training the network...\n"
 
@@ -134,25 +152,29 @@ class Autoencoders(object):
             _cost.append(0)
             _time.append(tm.time())
 
-            for j in xrange(len(fData) / fBatchSize):
+            for j in xrange(len(fData) / fBatchsize):
 
-                _in  = fData[j*fBatchSize:(j+1)*fBatchSize, :].transpose()
+                _in  = fData[j*fBatchsize:(j+1)*fBatchsize, :].transpose()
 
                 _out = self.propagation(_in)
 
                 _err = self.backpropagation(_out)
 
-                _dWeights, _dBiases = self.partial_derivatives(_err, _out, fBatchSize)
+                _dWeights, _dBiases = self.partial_derivatives(_err, _out, fBatchsize)
 
+                if(i > 0 or j > 0):
+                    self.angle_driven_approach(_dWeights)
+                    
                 self.update(_dWeights, _dBiases)
 
-                _cost[i] += self.error(_out[-1], _in, fBatchSize)
+                _cost[i] += self.error(_out[-1], _in, fBatchsize)
 
 
-            _cost[i] /= (len(fData) / fBatchSize)
+            _cost[i] /= (len(fData) / fBatchsize)
             _time[i]  = tm.time() - _time[i]
             
-            print "Epochs :", i, "Time :", _time[i], "Cost :", _cost[i]
+            print "Epochs:", i, "Time:", _time[i], "Cost:", _cost[i]
+            print "Learning Rate:", self.mLearningRate, "Momentum:", self.mMomentum
 
 ########################################################################
 

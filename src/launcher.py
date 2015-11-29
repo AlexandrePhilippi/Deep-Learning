@@ -3,18 +3,18 @@ import loader       as ld
 import display      as dy
 import autoencoders as ac
 
-DATASETS  = "mnist"
-SAVENAME  = "pocky"
+DATASETS  = "cifar10"
+SAVENAME  = "cifar"
 
-EPOCHS    = 1000
+EPOCHS    = 200
 BATCHSIZE = 1000
 
 LEARNING_RATE   = 0.1
-MOMENTUM        = 0.9
+MOMENTUM        = 0.5
 SPARSITY_TARGET = 0.05
 SPARSITY_COEF   = 3
 
-NETWORK = (784,128,784)
+NETWORK = (1024,256,1024)
 
 def main(args):
 
