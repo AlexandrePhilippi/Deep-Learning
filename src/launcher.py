@@ -3,10 +3,10 @@ import loader       as ld
 import display      as dy
 import autoencoders as ac
 
-DATASETS  = "cifar10"
-SAVENAME  = "cifar"
+DATASETS  = "mnist"
+SAVENAME  = "cross"
 
-EPOCHS    = 200
+EPOCHS    = 20
 BATCHSIZE = 1000
 
 LEARNING_RATE   = 0.1
@@ -14,7 +14,7 @@ MOMENTUM        = 0.5
 SPARSITY_TARGET = 0.05
 SPARSITY_COEF   = 3
 
-NETWORK = (1024,256,1024)
+NETWORK = (784,64,784)
 
 def main(args):
 

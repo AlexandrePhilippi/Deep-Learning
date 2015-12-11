@@ -1,6 +1,7 @@
-import time  as tm
-import math  as mt
-import numpy as np
+import random as rd
+import time   as tm
+import math   as mt
+import numpy  as np
 
 from scipy.special import expit
 
@@ -137,24 +138,37 @@ class Autoencoders(object):
 
             # Momentum coefficient update
             self.mMomentum[i] = 0.5 * self.mLearningRate[i] * np.linalg.norm(fDWeights[i]) / np.linalg.norm(self.mVariations[i])
-    
+
+########################################################################
+            
+    def cross_validation(self, fData):
+
+        rd.shuffle(fData)
+
+        _refsize = 4*round(len(fData) * 20 / 100)
+        
+        _trainset = fData[0:_refsize, :]
+        _crossset = fData[_refsize:len(fData), :]
+
+        return _trainset, _crossset
+        
 ########################################################################
 
     def train(self, fEpochs, fData, fBatchsize):
 
         print "Training the network...\n"
 
-        _cost = []
-        _time = []
+        _traincost = []; _crosscost = []; _time = []
         
         for i in xrange(fEpochs):
 
-            _cost.append(0)
-            _time.append(tm.time())
+            _traincost.append(0); _crosscost.append(0); _time.append(tm.time())
 
-            for j in xrange(len(fData) / fBatchsize):
+            _trainset, _crossset = self.cross_validation(fData)
+            
+            for j in xrange(len(_trainset) / fBatchsize):
 
-                _in  = fData[j*fBatchsize:(j+1)*fBatchsize, :].transpose()
+                _in  = _trainset[j*fBatchsize:(j+1)*fBatchsize, :].transpose()
 
                 _out = self.propagation(_in)
 
@@ -167,14 +181,23 @@ class Autoencoders(object):
                     
                 self.update(_dWeights, _dBiases)
 
-                _cost[i] += self.error(_out[-1], _in, fBatchsize)
+                _traincost[i] += self.error(_out[-1], _in, len(_trainset))
 
 
-            _cost[i] /= (len(fData) / fBatchsize)
-            _time[i]  = tm.time() - _time[i]
+            _crosscost[i] = self.evaluate(_crossset)
+            _time[i]      = tm.time() - _time[i]
             
-            print "Epochs:", i, "Time:", _time[i], "Cost:", _cost[i]
+            print "Epochs:", i, "Time:", _time[i], "Train Cost:", _traincost[i], "Cross Cost:", _crosscost[i]
             print "Learning Rate:", self.mLearningRate, "Momentum:", self.mMomentum
+
+########################################################################
+            
+    def evaluate(self, fData):
+
+        _in  = fData.transpose()
+        _out = self.propagation(_in)
+        
+        return self.error(_out[-1], _in, len(fData))
 
 ########################################################################
 
