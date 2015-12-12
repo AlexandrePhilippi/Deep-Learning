@@ -1,4 +1,3 @@
-import random as rd
 import time   as tm
 import math   as mt
 import numpy  as np
@@ -143,9 +142,9 @@ class Autoencoders(object):
             
     def cross_validation(self, fData):
 
-        rd.shuffle(fData)
+        np.random.shuffle(fData)
 
-        _refsize = 4*round(len(fData) * 20 / 100)
+        _refsize = 3*round(len(fData) * 20 / 100)
         
         _trainset = fData[0:_refsize, :]
         _crossset = fData[_refsize:len(fData), :]
@@ -183,9 +182,8 @@ class Autoencoders(object):
 
                 _traincost[i] += self.error(_out[-1], _in, len(_trainset))
 
-
-            _crosscost[i] = self.evaluate(_crossset)
-            _time[i]      = tm.time() - _time[i]
+            _crosscost[i]  = self.evaluate(_crossset)
+            _time[i]       = tm.time() - _time[i]
             
             print "Epochs:", i, "Time:", _time[i], "Train Cost:", _traincost[i], "Cross Cost:", _crosscost[i]
             print "Learning Rate:", self.mLearningRate, "Momentum:", self.mMomentum
