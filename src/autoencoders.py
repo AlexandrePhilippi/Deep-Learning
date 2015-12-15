@@ -4,6 +4,9 @@ import numpy  as np
 
 from scipy.special import expit
 
+# Global parameters
+STATEPATH = "../states/"
+
 class Autoencoders(object):
 
     def __init__(self,
@@ -240,3 +243,43 @@ class Autoencoders(object):
             _img[i,:] = _row
 
         return _img
+
+########################################################################
+    
+    def save_state(self, fName):
+        
+        for i in xrange(len(self.mWeights)):
+            _path = STATEPATH + fName + "_W" + str(i) + ".txt"
+            np.savetxt(_path, self.mWeights[i])
+
+        for i in xrange(len(self.mBiases)):
+            _path = STATEPATH + fName + "_B" + str(i) + ".txt"
+            np.savetxt(_path, self.mBiases[i])
+
+########################################################################
+            
+    def load_state(self, fName):
+
+        for i in xrange(len(self.mWeights)):
+            _path = STATEPATH + fName + "_W" + str(i) + ".txt"
+
+            try:
+                self.mWeights[i] = np.loadtxt(_path)
+            except IOError:
+                print "{0} doesn't exist".format(_path)
+
+        for i in xrange(len(self.mBiases)):
+            _path = STATEPATH + fName + "_B" + str(i) + ".txt"
+
+            try:
+                self.mBiases[i] = np.loadtxt(_path)
+            except IOError:
+                print "{0} doesn't exist". format(_path)
+
+########################################################################
+                
+    def save_hidden_output(self, fName, fType, fData):
+
+        _out = self.propagation(fData.transpose())[1].transpose()
+
+        np.savetxt(DATAPATH + fName + "_" + fType + "set.txt", _out)

@@ -5,8 +5,8 @@ import autoencoders as ac
 
 def main(argv):
 
-    DATASETS  = "mnist"
-    SAVENAME  = "cross"
+    DATASET  = "mnist"
+    SAVENAME = "cross"
     
     EPOCHS    = 200
     BATCHSIZE = 1000
@@ -46,7 +46,7 @@ def main(argv):
                 NETWORK = map(int, arg.split(','))
                 
             elif opt == "--dataset":
-                DATASETS = arg
+                DATASET = arg
                 
             elif opt == "--save":
                 SAVENAME = arg
@@ -54,7 +54,7 @@ def main(argv):
     except getopt.GetoptError:
         pass
                 
-    print "launcher.py --epochs {0} --batchsize {1} --epsilon {2} --momentum {3} --sparsity {4} --layers {5} --dataset {6} --save {7}".format(EPOCHS, BATCHSIZE, LEARNING_RATE, MOMENTUM, SPARSITY_COEF, NETWORK, DATASETS, SAVENAME)
+    print "launcher.py --epochs {0} --batchsize {1} --epsilon {2} --momentum {3} --sparsity {4} --layers {5} --dataset {6} --save {7}".format(EPOCHS, BATCHSIZE, LEARNING_RATE, MOMENTUM, SPARSITY_COEF, NETWORK, DATASET, SAVENAME)
 
     _nnet = ac.Autoencoders(NETWORK,
                             LEARNING_RATE,
@@ -62,25 +62,14 @@ def main(argv):
                             SPARSITY_TARGET,
                             SPARSITY_COEF)
 
-
-    if DATASETS == "mnist":
-        _trainsets = ld.mnist_train_img("../datasets/mnist")
-        _testsets = ld.mnist_test_img("../datasets/mnist")
-
+    _trainset = ld.load_dataset(DATASET, "train")[0]
+    _testset  = ld.load_dataset(DATASET, "test")[0]
         
-    elif DATASETS == "cifar10":
-        _trainsets = ld.cifar10_train("../datasets/cifar-10")[0]
-        _testsets = ld.cifar10_test("../datasets/cifar-10")[0]
-        
-    else:
-        print "Wrong datasets."
-        exit(1)
-        
-    _nnet.train(EPOCHS, _trainsets, BATCHSIZE)
+    _nnet.train(EPOCHS, _trainset, BATCHSIZE)
 
-    _out = _nnet.test(_testsets)
+    _out = _nnet.test(_testset)
 
-    dy.display(SAVENAME, "out", _testsets, _out)
+    dy.display(SAVENAME, "out", _testset, _out)
 
     _neurons = _nnet.neurons_vision()
 

@@ -5,7 +5,8 @@ from cPickle import load
 from os.path import join
 
 # Global parameters
-DATAPATH = "../datasets/"
+DATAPATH  = "../datasets/"
+STATEPATH = "../states/"
 
 ##################################################################
 # MNIST database
@@ -89,3 +90,21 @@ def cifar10_test(fPath):
     _file.close()
 
     return normalize_cifar_set([_dict])
+
+##################################################################
+# Easy loader
+##################################################################
+
+def load_dataset(fName, fType):
+
+    _path = DATAPATH + fName
+
+    if fName == "mnist":
+        if fType == "train": return mnist_train(_path)
+        else:                return mnist_test (_path)
+
+    elif fName == "cifar-10":
+        if fType == "train": return cifar10_train(_path)
+        else:                return cifar10_test (_path)
+            
+    else: return [np.loadtxt(_path + "_" + fType + "sets.txt")]
