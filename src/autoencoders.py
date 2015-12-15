@@ -158,7 +158,7 @@ class Autoencoders(object):
 
     def train(self, fEpochs, fData, fBatchsize):
 
-        print "Training the network...\n"
+        print "\nTraining the network {0}...\n".format(self.mLayers)
 
         _traincost = []; _crosscost = []; _time = []
         
@@ -246,14 +246,14 @@ class Autoencoders(object):
 
 ########################################################################
     
-    def save_state(self, fName):
+    def save_state(self, fName, fLayers):
         
         for i in xrange(len(self.mWeights)):
-            _path = STATEPATH + fName + "_W" + str(i) + ".txt"
+            _path = STATEPATH + fName + "_W" + str(fLayers[i]) + ".txt"
             np.savetxt(_path, self.mWeights[i])
 
         for i in xrange(len(self.mBiases)):
-            _path = STATEPATH + fName + "_B" + str(i) + ".txt"
+            _path = STATEPATH + fName + "_B" + str(fLayers[i]) + ".txt"
             np.savetxt(_path, self.mBiases[i])
 
 ########################################################################
@@ -272,7 +272,7 @@ class Autoencoders(object):
             _path = STATEPATH + fName + "_B" + str(i) + ".txt"
 
             try:
-                self.mBiases[i] = np.loadtxt(_path)
+                self.mBiases[i] = np.expand_dims(np.loadtxt(_path), 1)
             except IOError:
                 print "{0} doesn't exist". format(_path)
 

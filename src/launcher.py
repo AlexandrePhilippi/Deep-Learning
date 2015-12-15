@@ -6,7 +6,7 @@ import autoencoders as ac
 def main(argv):
 
     DATASET  = "mnist"
-    SAVENAME = "cross"
+    SAVENAME = "test"
     
     EPOCHS    = 200
     BATCHSIZE = 1000
@@ -54,17 +54,49 @@ def main(argv):
     except getopt.GetoptError:
         pass
                 
-    print "launcher.py --epochs {0} --batchsize {1} --epsilon {2} --momentum {3} --sparsity {4} --layers {5} --dataset {6} --save {7}".format(EPOCHS, BATCHSIZE, LEARNING_RATE, MOMENTUM, SPARSITY_COEF, NETWORK, DATASET, SAVENAME)
+    print "launcher.py --epochs {0} --batchsize {1} --epsilon {2} --momentum {3} --sparsity {4} --layers {5} --dataset {6} --save {7}\n".format(EPOCHS, BATCHSIZE, LEARNING_RATE, MOMENTUM, SPARSITY_COEF, NETWORK, DATASET, SAVENAME)
 
+    #############################
+    # Main set
+    #############################
+
+    _trainset = ld.load_dataset(DATASET, "train")[0]
+    _testset  = ld.load_dataset(DATASET, "test")[0]
+    
+    #############################
+    # Deep network pre-training #
+    #############################
+
+    _set = _trainset
+    
+    for i in xrange(len(NETWORK) - 3):
+        
+        _network = [NETWORK[i], NETWORK[i+1], NETWORK[i]]
+        
+        _nnet = ac.Autoencoders(_network,
+                                LEARNING_RATE,
+                                MOMENTUM,
+                                SPARSITY_TARGET,
+                                SPARSITY_COEF)
+
+        _nnet.train(EPOCHS, _set, BATCHSIZE)
+        
+        _nnet.save_state(SAVENAME, [i, len(NETWORK) - i - 2])
+
+        _set = _nnet.propagation(_set.transpose())[1].transpose()
+        
+    ###########################
+    # Global network training #
+    ###########################
+    
     _nnet = ac.Autoencoders(NETWORK,
                             LEARNING_RATE,
                             MOMENTUM,
                             SPARSITY_TARGET,
                             SPARSITY_COEF)
 
-    _trainset = ld.load_dataset(DATASET, "train")[0]
-    _testset  = ld.load_dataset(DATASET, "test")[0]
-        
+    _nnet.load_state(SAVENAME)
+    
     _nnet.train(EPOCHS, _trainset, BATCHSIZE)
 
     _out = _nnet.test(_testset)
